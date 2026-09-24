@@ -412,3 +412,35 @@ Manually smoke-tested end-to-end against 30 synthetic result files,
 including the actual PNG render.
 
 Full test suite: 59/59 passing.
+
+## 2026-09-24 — More frequent progress feedback in train.py
+
+Navid wanted regular updates on step count and current train loss for
+each run, and reported not getting them regularly enough in practice.
+Two separate causes:
+
+1. The only progress line was tied to `--eval_every_steps` (100 by
+   default), which also runs a real val-loss pass (10 extra forward-pass
+   batches) -- expensive enough that it was kept infrequent, giving an
+   update only every ~3 minutes at the real architecture's step speed.
+2. Python buffers stdout in chunks (not line-by-line) when it isn't
+   writing directly to a terminal -- e.g. when piped through `tee` or
+   redirected to a log file -- so even those periodic lines could arrive
+   in delayed bursts rather than as they're produced.
+
+Fixed both: added `--print_every_steps` (default 10), a cheap line
+(step + train_loss only, no extra compute -- the loss is already
+computed for backprop) printed independently of `--eval_every_steps`,
+which keeps its existing cadence for the more expensive val-loss check
+and best-checkpoint tracking. When the two intervals coincide, only the
+fuller eval line prints (no duplicate). Every print in train.py now
+passes `flush=True` (stderr prints were already unbuffered and didn't
+need it) so output appears immediately even when piped/redirected.
+
+`tests/test_print_every_steps_decoupled_from_eval` (in
+tests/test_train_protocol.py) checks the two intervals produce the
+right lines at the right steps with no duplication, and that
+metrics.jsonl still only logs on eval steps (not print steps) -- i.e.
+the cheap prints really are free of the eval-cadence's overhead.
+
+Full suite: 61/61 passing.

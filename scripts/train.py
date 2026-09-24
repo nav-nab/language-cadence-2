@@ -179,6 +179,11 @@ def main():
     p.add_argument("--checkpoint_every_seconds", type=float, default=600.0)  # 10 min, under the 30-min ceiling
     p.add_argument("--eval_every_steps", type=int, default=100)
     p.add_argument("--eval_batches", type=int, default=10)
+    p.add_argument("--print_every_steps", type=int, default=10,
+                    help="Print step/train_loss this often (cheap, no extra compute -- "
+                         "the loss is already computed for backprop). Independent of "
+                         "--eval_every_steps, which additionally runs a real val-loss "
+                         "pass and is deliberately less frequent to limit that overhead.")
     p.add_argument("--sweep_index", type=int, default=None,
                     help="This run's 1-based position in the sweep (display only, set by run_sweep.py).")
     p.add_argument("--sweep_total", type=int, default=None,
@@ -251,13 +256,13 @@ def main():
         best_val_loss = ckpt.get("best_val_loss", float("inf"))
         best_step = ckpt.get("best_step", 0)
         print(f"{sweep_tag}[{run_id}] resuming from checkpoint at step {start_step}/{args.steps} "
-              f"(best val_loss so far: {best_val_loss:.4f} at step {best_step})")
+              f"(best val_loss so far: {best_val_loss:.4f} at step {best_step})", flush=True)
     else:
         print(f"{sweep_tag}[{run_id}] starting fresh: {count_params(model):,} params, "
-              f"{n_chunks} train windows, {steps_per_epoch} steps/epoch")
+              f"{n_chunks} train windows, {steps_per_epoch} steps/epoch", flush=True)
 
     if start_step >= args.steps:
-        print(f"{sweep_tag}[{run_id}] already complete ({start_step} >= {args.steps} steps).")
+        print(f"{sweep_tag}[{run_id}] already complete ({start_step} >= {args.steps} steps).", flush=True)
     else:
         last_ckpt_time = time.time()
         step = start_step
@@ -277,7 +282,10 @@ def main():
             optimizer.step()
             step += 1
 
-            if step % args.eval_every_steps == 0 or step == args.steps:
+            is_eval_step = step % args.eval_every_steps == 0 or step == args.steps
+            is_print_step = step % args.print_every_steps == 0 or step == args.steps
+
+            if is_eval_step:
                 val_loss = eval_loss(model, val_windows, args.eval_batches, args.batch_size, device)
                 rec = {
                     "step": step, "epoch": epoch, "train_loss": loss_val,
@@ -286,7 +294,7 @@ def main():
                 with open(metrics_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(rec) + "\n")
                 print(f"{sweep_tag}[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
-                      f"train_loss={loss_val:.4f}  val_loss(subset)={val_loss:.4f}")
+                      f"train_loss={loss_val:.4f}  val_loss(subset)={val_loss:.4f}", flush=True)
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -297,7 +305,10 @@ def main():
                         "model_state_dict": model.state_dict(),
                         "config": vars(args),
                     })
-                    print(f"{sweep_tag}[{run_id}]   new best val_loss={val_loss:.4f} at step {step} -- checkpoint_best.pt updated")
+                    print(f"{sweep_tag}[{run_id}]   new best val_loss={val_loss:.4f} at step {step} -- checkpoint_best.pt updated", flush=True)
+            elif is_print_step:
+                print(f"{sweep_tag}[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
+                      f"train_loss={loss_val:.4f}", flush=True)
 
             if time.time() - last_ckpt_time >= args.checkpoint_every_seconds or step == args.steps:
                 save_checkpoint(ckpt_path, {
@@ -310,7 +321,7 @@ def main():
                     "config": vars(args),
                 })
                 last_ckpt_time = time.time()
-                print(f"{sweep_tag}[{run_id}] checkpoint saved at step {step}")
+                print(f"{sweep_tag}[{run_id}] checkpoint saved at step {step}", flush=True)
 
     # Final eval uses the BEST-val-loss checkpoint, not the final step's
     # weights (Stage 5 protocol) -- see module docstring for why.
@@ -338,7 +349,7 @@ def main():
     with open(os.path.join(run_dir, "final_result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
     print(f"{sweep_tag}[{run_id}] DONE. final_test_loss={final_test_loss:.4f} "
-          f"(from best-val checkpoint at step {best_step}, val_loss={best_val_loss:.4f})")
+          f"(from best-val checkpoint at step {best_step}, val_loss={best_val_loss:.4f})", flush=True)
 
 
 if __name__ == "__main__":

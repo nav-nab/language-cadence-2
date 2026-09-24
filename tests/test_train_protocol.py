@@ -138,3 +138,40 @@ def test_sweep_tag_appears_in_progress_output(tmp_path):
     _make_tiny_corpus(other_dir, os.path.join(other_dir, "vocab.json"), n_tokens=2000, vocab_size=24)
     result2 = _run(other_dir, steps=3)
     assert "[run" not in result2.stdout
+
+
+@pytest.mark.slow
+def test_print_every_steps_decoupled_from_eval(tmp_path):
+    """Cheap step/train_loss lines print on --print_every_steps; the fuller
+    line (with val_loss) only prints on --eval_every_steps, and the two
+    never double-print on a step where both coincide."""
+    data_dir = str(tmp_path)
+    vocab_path = os.path.join(data_dir, "vocab.json")
+    _make_tiny_corpus(data_dir, vocab_path, n_tokens=2000, vocab_size=24)
+
+    result = _run(data_dir, steps=20, overrides={
+        "--eval_every_steps": "10", "--print_every_steps": "5", "--eval_batches": "1",
+    })
+    lines = [l for l in result.stdout.splitlines() if "] step " in l]
+
+    step_lines = {}
+    for l in lines:
+        step = int(l.split("step ")[1].split("/")[0])
+        step_lines.setdefault(step, []).append(l)
+
+    # printed on every multiple of 5 (print_every_steps), not just eval steps
+    assert set(step_lines.keys()) == {5, 10, 15, 20}
+    # eval steps (10, 20) get exactly one line, and it has val_loss
+    for step in (10, 20):
+        assert len(step_lines[step]) == 1
+        assert "val_loss(subset)=" in step_lines[step][0]
+    # pure print steps (5, 15) also get exactly one line, without val_loss
+    for step in (5, 15):
+        assert len(step_lines[step]) == 1
+        assert "val_loss(subset)=" not in step_lines[step][0]
+        assert "train_loss=" in step_lines[step][0]
+
+    # metrics.jsonl (the eval log) only has the 2 eval-step entries, not 4
+    metrics_path = os.path.join(data_dir, "runs", "baseline_seed0", "metrics.jsonl")
+    metrics = [json.loads(l) for l in open(metrics_path)]
+    assert [m["step"] for m in metrics] == [10, 20]
