@@ -68,3 +68,35 @@ the headline numbers alongside the original notes' numbers.
   vocabulary size from real coverage, base PE choice, model/step budget,
   experiment protocol — all still to be proposed and checked with Navid
   before freezing, per the brief.
+
+## 2026-09-24 — Hardware and throughput benchmark
+
+Training runs execute via the same sandboxed Linux VM this session uses to
+work on the connected `language-cadence-2` folder (4 logical CPUs exposed,
+Intel Core i5-1038NG7 @ 2.00GHz, ~3.8GB RAM available to the VM, CPU only —
+no CUDA/MPS acceleration available here).
+
+Ran `scripts/benchmark_throughput.py`: a tiny GPT at the likely sweep
+architecture (D=64, 4 layers, 4 heads, seq_len=384, vocab=8000, batch=16;
+~1.25M params) for 100s of steady-state training (forward+backward+AdamW
+step, no dataloader/IO overhead included). Result: **361 ms/step, ~17,000
+tokens/sec**.
+
+Feasibility against the 48h total-compute budget: at this throughput, 48h
+buys ~479,000 total training steps. One "roughly one epoch" run over the
+~4-5M-word WIT3 corpus at this batch/seq config is on the order of 2,500-
+3,500 steps (word count -> syllable-token count still to be confirmed once
+the corpus is parsed). Even a generous experiment plan — say 14 periods x
+3 seeds x ~3000 steps, plus a handful of controls (wrong-period, learned-
+phase, RoPE) — comes to well under 200,000 steps, i.e. well under 24h of
+raw training compute. **48h budget looks comfortably feasible**; there is
+headroom to add a second seed pass, a slightly larger model, or optional
+extras (written-text control, BNC2014 transfer test) without threatening
+the budget. IO/preprocessing overhead and real-corpus dataloading will add
+some wall-clock on top of pure training time, but not enough to change this
+conclusion.
+
+Caveat: this benchmark measures the sandboxed VM's throughput, which is
+where actual training will run (via the same device-bridge shell used for
+this session) — it is not a bare-metal macOS benchmark, and full-machine
+performance could differ if training is instead run directly on macOS.
