@@ -1,0 +1,31 @@
+# Raw and processed data (rebuild via scripts/download_and_prepare_data.py)
+data/raw/
+data/extracted/
+data/processed/
+data/*.zip
+data/*.tgz
+data/*.tar.gz
+
+# Trained models / checkpoints / logs
+checkpoints/
+runs/
+*.pt
+*.ckpt
+wandb/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Local env / secrets
+.env

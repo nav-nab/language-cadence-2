@@ -1,0 +1,27 @@
+{
+  "brown_word_token_count": 991429,
+  "brown_distinct_word_count": 42256,
+  "cmudict_coverage_word_tokens": 0.983855,
+  "cmudict_coverage_distinct_words": 0.8781038374717833,
+  "pieces_rejoin_word_pct": 1.0,
+  "vowel_in_every_piece_pct": 0.98353,
+  "syllables_per_word": 1.555355,
+  "chars_per_syllable_token": 3.0294916594603802,
+  "stream_token_count": 627282,
+  "stream_distinct_token_types": 11845,
+  "coverage_by_vocab_size": {
+    "1000": 0.8339168029689996,
+    "2000": 0.9134982352434791,
+    "4000": 0.9665317990951439,
+    "8000": 0.9930350304966507,
+    "16000": 1.0
+  },
+  "distinct_piece_types_in_word_sample": 10325,
+  "fallback_count_accuracy_on_oov_probe": 0.8166666666666667,
+  "pyphen_alone_count_accuracy_on_oov_probe": 0.7893333333333333,
+  "hybrid_vs_pyphen_cut_agreement_when_counts_match": 0.6182224706539966,
+  "hybrid_vs_pyphen_agreement_sample_n": 1789,
+  "sample_size": 200000,
+  "oov_probe_size": 3000,
+  "seed": 0
+}
