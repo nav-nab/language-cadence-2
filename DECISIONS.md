@@ -115,3 +115,47 @@ the other pipeline scripts) and now writes its output to
 updated to import from `syllable_tokenizer`. Re-ran the full test suite
 (35/35 pass) and `scripts/eval_hybrid.py` after the move to confirm nothing
 broke.
+
+## 2026-09-24 — WIT3 download, extraction, and corpus inspection
+
+Downloaded `XML_releases.tgz` (1,666,674,366 bytes, matches Hugging Face's
+reported size exactly) from `IWSLT/ted_talks_iwslt`, `data/XML_releases.tgz`.
+The inferred path `XML_releases/xml/ted_en-20160408.zip` was verified to
+exist inside the archive as expected. Extracted just that member and
+unzipped it to `data/extracted/ted_en-20160408.xml` (74.5MB). Raw archive
+and extracted XML live under `data/raw/` and `data/extracted/`, both
+gitignored.
+
+Parses cleanly with plain `xml.etree.ElementTree` (no malformed XML
+encountered in this release) — `scripts/parse_wit3.py` still includes a
+per-`<file>`-block regex-recovery fallback for robustness, but it wasn't
+needed here. One correction to the brief's assumed structure: `<content>`
+(the full subtitle text) is a **sibling** of `<head>` within `<file>`, not
+nested inside `<head>` — verified directly against the XML and fixed in
+the parser.
+
+`scripts/inspect_corpus.py` results (full report in
+`results/wit3_corpus_stats.json`):
+- 2085 talks, all distinct talkids, no duplicates.
+- ~4.34M words by our own count (4.37M by the corpus's self-reported
+  `wordnum`) — matches the ~4-5M-word expectation.
+- Talk length: median 2130 words, p10 751, p90 3268, min 2, max 6381.
+  10 talks are under 100 words; inspected them by hand — all are
+  music/dance/comedy performances with almost no spoken content (e.g.
+  "(Music)\n(Applause)"), not a parsing artifact.
+- Cues: 2048/2085 talks (98%) contain at least one parenthetical cue,
+  14,631 total occurrences. Dominated by (Laughter) 8313 and (Applause)
+  4538; long tail of one-off audio-description cues (music, video, singing,
+  beatboxing, language-name cues like "(In Chinese)", sound-effect cues).
+- 1767 distinct speakers; 221 speakers give more than one talk, accounting
+  for 539 of the 2085 talks (~26%) — a plain random talk-level split would
+  leak speakers across train/val/test.
+- Date range 1984-2016 (TED talks predate the TEDx/online era at the low
+  end; long tail of older talks).
+- CMUdict coverage (400-talk sample, ~756k word tokens): 99.0% of word
+  *tokens*, 86.2% of *distinct* words — high token-level coverage means
+  the OOV fallback syllabifier will rarely be invoked in practice, even
+  though many distinct (often proper-noun/rare) words are OOV.
+
+Preprocessing and the train/val/test split are proposed next and will be
+checked with Navid before freezing, per the brief.

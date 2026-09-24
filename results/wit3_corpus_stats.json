@@ -1,0 +1,238 @@
+{
+  "n_talks": 2085,
+  "n_distinct_talkids": 2085,
+  "n_duplicate_talkid_rows": 0,
+  "total_words_reported_wordnum": 4372216,
+  "total_words_own_count": 4341437,
+  "talk_length_words_own_count": {
+    "min": 2,
+    "p10": 751.4,
+    "median": 2130.0,
+    "mean": 2082.2239808153477,
+    "p90": 3268.2000000000003,
+    "max": 6381
+  },
+  "talks_under_50_words": 9,
+  "talks_under_100_words": 10,
+  "talks_under_200_words": 21,
+  "talks_with_at_least_one_cue": 2048,
+  "total_cue_occurrences": 14631,
+  "top_30_cues": [
+    [
+      "laughter",
+      8313
+    ],
+    [
+      "applause",
+      4538
+    ],
+    [
+      "music",
+      567
+    ],
+    [
+      "video",
+      297
+    ],
+    [
+      "laughs",
+      50
+    ],
+    [
+      "audio",
+      34
+    ],
+    [
+      "applause ends",
+      34
+    ],
+    [
+      "singing",
+      30
+    ],
+    [
+      "music ends",
+      27
+    ],
+    [
+      "beatboxing",
+      23
+    ],
+    [
+      "cheers",
+      18
+    ],
+    [
+      "whistling",
+      18
+    ],
+    [
+      "cheering",
+      15
+    ],
+    [
+      "clicks metronome",
+      13
+    ],
+    [
+      "sighs",
+      12
+    ],
+    [
+      "english",
+      9
+    ],
+    [
+      "in chinese",
+      9
+    ],
+    [
+      "clapping",
+      8
+    ],
+    [
+      "audience",
+      8
+    ],
+    [
+      "arabic",
+      7
+    ],
+    [
+      "ball squeaks",
+      7
+    ],
+    [
+      "beeps",
+      7
+    ],
+    [
+      "laughter ends",
+      7
+    ],
+    [
+      "honk",
+      7
+    ],
+    [
+      "claps",
+      7
+    ],
+    [
+      "ringing",
+      6
+    ],
+    [
+      "explosion",
+      6
+    ],
+    [
+      "clicking",
+      6
+    ],
+    [
+      "drum roll",
+      6
+    ],
+    [
+      "tones",
+      6
+    ]
+  ],
+  "n_distinct_speakers": 1767,
+  "n_speakers_with_multiple_talks": 221,
+  "talks_by_repeat_speakers": 539,
+  "top_20_speakers_by_talk_count": [
+    [
+      "Hans Rosling",
+      9
+    ],
+    [
+      "Rives",
+      6
+    ],
+    [
+      "Marco Tempest",
+      6
+    ],
+    [
+      "Dan Ariely",
+      5
+    ],
+    [
+      "Bill Gates",
+      5
+    ],
+    [
+      "Nicholas Negroponte",
+      5
+    ],
+    [
+      "Julian Treasure",
+      5
+    ],
+    [
+      "Juan Enriquez",
+      5
+    ],
+    [
+      "Clay Shirky",
+      5
+    ],
+    [
+      "Jacqueline Novogratz",
+      5
+    ],
+    [
+      "Al Gore",
+      4
+    ],
+    [
+      "Barry Schwartz",
+      4
+    ],
+    [
+      "Tom Wujec",
+      4
+    ],
+    [
+      "Robert Full",
+      4
+    ],
+    [
+      "Lawrence Lessig",
+      4
+    ],
+    [
+      "David Pogue",
+      4
+    ],
+    [
+      "Stewart Brand",
+      4
+    ],
+    [
+      "Eve Ensler",
+      4
+    ],
+    [
+      "Jonathan Drori",
+      4
+    ],
+    [
+      "Stefan Sagmeister",
+      4
+    ]
+  ],
+  "date_range": [
+    "1984/02/02",
+    "2016/02/19"
+  ],
+  "cmudict_coverage_sample": {
+    "n_talks_sampled": 400,
+    "n_word_tokens": 755897,
+    "coverage_word_tokens": 0.9901798790046792,
+    "n_distinct_words": 25195,
+    "coverage_distinct_words": 0.862036118277436
+  }
+}
