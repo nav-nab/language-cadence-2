@@ -15,15 +15,19 @@ code) the class of diagnostics described in project notes:
     words where the two methods agree on syllable count (an apples-to-apples
     comparison of *placement* given the same count).
 
-Writes results to eval_hybrid_report.json in the current directory.
+Writes results to results/eval_hybrid_report.json (repo-root-relative).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
+import sys
 from collections import Counter
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import nltk
 
@@ -35,8 +39,8 @@ for pkg, path in [("brown", "corpora/brown")]:
 
 from nltk.corpus import brown  # noqa: E402
 
-import syllabify as syl  # noqa: E402
-from syllabify import (  # noqa: E402
+import syllable_tokenizer.syllabify as syl  # noqa: E402
+from syllable_tokenizer.syllabify import (  # noqa: E402
     cmudict_syllable_count,
     fallback_syllable_count,
     syllabify_word,
@@ -158,6 +162,7 @@ def eval_report(sample_size: int = 200_000, oov_probe_size: int = 3000, seed: in
 
 if __name__ == "__main__":
     rep = eval_report()
-    with open("eval_hybrid_report.json", "w", encoding="utf-8") as f:
+    out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "eval_hybrid_report.json")
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(rep, f, indent=2)
     print(json.dumps(rep, indent=2))

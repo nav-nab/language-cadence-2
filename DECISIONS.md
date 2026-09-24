@@ -100,3 +100,18 @@ Caveat: this benchmark measures the sandboxed VM's throughput, which is
 where actual training will run (via the same device-bridge shell used for
 this session) — it is not a bare-metal macOS benchmark, and full-machine
 performance could differ if training is instead run directly on macOS.
+
+## 2026-09-24 — Reorganized tokenizer code out of repo root
+
+Moved the tokenizer code into a proper package instead of loose files at
+the repo top level: `syllabify.py` and `tokenizer.py` -> `syllable_tokenizer/`
+(`syllabify.py`, `vocab.py` — renamed from `tokenizer.py` to avoid a
+name clash with the package itself), with an `__init__.py` re-exporting the
+public API (`tokenize`, `syllabify_word`, `Vocab`, etc.). The evaluation
+entry point `eval_hybrid.py` moved to `scripts/eval_hybrid.py` (alongside
+the other pipeline scripts) and now writes its output to
+`results/eval_hybrid_report.json` instead of the repo root, consistent with
+`results/` being where committed metrics live. `tests/test_syllabify.py`
+updated to import from `syllable_tokenizer`. Re-ran the full test suite
+(35/35 pass) and `scripts/eval_hybrid.py` after the move to confirm nothing
+broke.

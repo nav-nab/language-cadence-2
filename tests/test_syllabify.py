@@ -6,14 +6,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 
-from syllabify import (
+from syllable_tokenizer.syllabify import (
     tokenize,
     syllabify_word,
     cmudict_syllable_count,
     fallback_syllable_count,
     WORD_MARKER,
 )
-from tokenizer import Vocab, UNK, PAD, BOS, EOS
+from syllable_tokenizer.vocab import Vocab, UNK, PAD, BOS, EOS
 
 
 WORDS_WITH_KNOWN_COUNTS = [

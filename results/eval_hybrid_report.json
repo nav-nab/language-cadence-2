@@ -17,10 +17,10 @@
     "16000": 1.0
   },
   "distinct_piece_types_in_word_sample": 10325,
-  "fallback_count_accuracy_on_oov_probe": 0.8166666666666667,
-  "pyphen_alone_count_accuracy_on_oov_probe": 0.7893333333333333,
-  "hybrid_vs_pyphen_cut_agreement_when_counts_match": 0.6182224706539966,
-  "hybrid_vs_pyphen_agreement_sample_n": 1789,
+  "fallback_count_accuracy_on_oov_probe": 0.8296666666666667,
+  "pyphen_alone_count_accuracy_on_oov_probe": 0.7926666666666666,
+  "hybrid_vs_pyphen_cut_agreement_when_counts_match": 0.6010422698320788,
+  "hybrid_vs_pyphen_agreement_sample_n": 1727,
   "sample_size": 200000,
   "oov_probe_size": 3000,
   "seed": 0

@@ -1,5 +1,5 @@
 """
-tokenizer.py -- vocabulary + character-fallback layer over syllabify.tokenize.
+vocab.py -- vocabulary + character-fallback layer over syllabify.tokenize.
 
 A piece produced by syllabify.tokenize() is looked up in a fixed vocabulary.
 If present, it becomes one token id. If absent (rare, since the vocabulary is
@@ -27,7 +27,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass, field
 
-from syllabify import tokenize, WORD_MARKER
+from .syllabify import tokenize, WORD_MARKER
 
 PAD, UNK, BOS, EOS = "<pad>", "<unk>", "<bos>", "<eos>"
 SPECIAL_TOKENS = [PAD, UNK, BOS, EOS]

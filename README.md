@@ -25,10 +25,11 @@ The raw archive, extracted XML, and any processed/tokenized corpus are
 
 True syllables, not BPE: CMUdict gives each word's syllable count, spelling
 rules (scored against pyphen and NLTK's SSP syllable splitter) place the
-cut points. See `syllabify.py` / `tokenizer.py` and `DECISIONS.md` for the
-rebuild note. Run `pytest tests/` before trusting it. Reference stats on
-Brown are in `eval_hybrid_report.json`; the deployed vocabulary is rebuilt
-from WIT3 coverage, not the provisional Brown-based one.
+cut points. Library code lives in `syllable_tokenizer/` (`syllabify.py`,
+`vocab.py`); see `DECISIONS.md` for the rebuild note. Run `pytest tests/`
+before trusting it, and `python3 scripts/eval_hybrid.py` to regenerate
+`results/eval_hybrid_report.json` (reference stats on Brown). The deployed
+vocabulary is rebuilt from WIT3 coverage, not the provisional Brown-based one.
 
 ## Status
 
