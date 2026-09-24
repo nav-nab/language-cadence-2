@@ -7,12 +7,18 @@
 # causes a "ModuleNotFoundError" even though the package appears to be
 # installed. To be sure, use:
 #
-#   python3 -m pip install -r requirements.txt
+#   python3 -m pip install --upgrade -r requirements.txt
 #
-# (that guarantees pip installs into the same interpreter that
-# `python3 scripts/run_sweep.py` will use).
-numpy>=2.0
-torch>=2.0
+# numpy and torch are pinned to an exact, tested-together pair (rather
+# than a loose lower bound) because a PyTorch build compiled against
+# NumPy 1.x will crash with confusing numpy-related errors if a newer
+# NumPy 2.x gets installed next to it without upgrading PyTorch too --
+# pinning both forces pip to bring them into a matched pair instead of
+# silently leaving a stale, incompatible one in place. --upgrade above
+# is what makes pip actually replace an existing mismatched install
+# rather than treating "torch is already present" as satisfied.
+numpy==2.2.6
+torch==2.14.0
 pyphen>=0.17
 nltk>=3.9
 matplotlib>=3.9
