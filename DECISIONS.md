@@ -332,3 +332,83 @@ seed combination), built to run on Navid's own machine.
   only the identity-critical subset above.
 
 Full test suite: 48/48 passing.
+
+## 2026-09-24 — Stage 5: experiment protocol
+
+Confirmed with Navid (16GB RAM on his machine -- no memory concerns for
+batch_size=16 as configured):
+
+- **Learning rate**: fixed at 3e-4 for all runs, no per-config grid (the
+  budget is already tight; a grid would multiply the run count). If a
+  specific run visibly diverges it gets restarted by hand with a lower
+  --lr, not swept automatically.
+- **Seeds**: the same 3 seeds (0, 1, 2) are reused across every pe_mode/
+  period combination (paired comparison, not independent samples), rather
+  than fresh random seeds per config.
+- **Overfitting / epoch-count handling**: resolves the Stage 4 finding
+  that 3000 steps at N=1024 is ~7-8 epochs over the 6.5M-token training
+  set, not "~1 epoch". `train.py` now tracks val loss throughout training
+  and saves a second checkpoint (`checkpoint_best.pt`) whenever it
+  improves; the reported final_test_loss for every run comes from that
+  best-val checkpoint, not the final step's weights. best_val_loss/
+  best_step are persisted in the main checkpoint so they survive resume.
+- **Period selection on validation, not test**: the headline "does
+  periodic PE help" comparison picks the best P by validation loss, then
+  reports that P's test loss against baseline and RoPE. Test loss for all
+  8 periods is still reported/plotted for the full curve.
+- **Primary deliverable is a graph, not a single number**: Navid wants to
+  see the shape of test loss vs. P across all 8 periods (monotonic
+  decrease toward N as in language-cadence-1, a sweet spot, non-monotonic
+  noise, etc.), with baseline and RoPE as reference lines -- the best-P
+  comparison is one specific readout from that graph, not the only
+  output.
+- **Runs**: 8 periods x 3 seeds + 3 baseline seeds + 3 RoPE seeds = 30
+  runs total (unchanged from Stage 4's budget estimate, ~43.4h).
+
+**Implementation**:
+
+`scripts/train.py` additions:
+- `checkpoint_best.pt`: saved (atomically) whenever val_loss_subset
+  improves during training; final test-set eval loads this checkpoint's
+  weights instead of the final step's. `final_result.json` now also
+  records pe_mode/period/seed/best_step/best_val_loss directly (not just
+  run_id), for easier downstream aggregation.
+- `check_finite_loss()`: hard halt (exit code 1, writes divergence.json)
+  the moment a step's loss goes non-finite, *before* backward()/
+  optimizer.step() can further corrupt the model -- the last checkpoint
+  stays valid, so the fix is to restart that one run (fresh --out_dir or
+  delete its checkpoint.pt) with a lower --lr, not to resume it as-is.
+- `check_loss_spike()`: soft warning (logged to warnings.log + stderr,
+  not fatal) when a step's loss is >10x the recent EMA after a 50-step
+  warmup -- surfaces a suspicious run without halting it, since early
+  training is naturally noisy.
+
+`tests/test_train_protocol.py` (6 tests): unit tests for
+`check_finite_loss` (halts on nan/inf, writes diagnostic, no-ops on a
+finite value) and integration tests (via real subprocess runs of
+train.py on a tiny synthetic corpus) proving `checkpoint_best.pt` and
+`final_result.json`'s best_step/best_val_loss match the actual minimum
+of the logged `metrics.jsonl` val_loss_subset values, including across
+an interrupt/resume boundary.
+
+`scripts/run_sweep.py`: launches all 30 runs by invoking train.py per
+config. Skips any run whose `final_result.json` already exists, so
+re-running the whole sweep after a partial interruption (beyond what
+train.py's own per-run resume already handles) doesn't redo finished
+runs. A diverged run (non-zero exit) is logged and the sweep continues
+with the next config rather than aborting. `tests/test_run_sweep.py` (3
+tests) checks the config list is exactly 8x3 periodic + 3 baseline + 3
+RoPE with no duplicates, run_id formatting, and that --dry_run doesn't
+actually invoke train.py.
+
+`scripts/analyze_sweep.py`: aggregates `runs/*/final_result.json` by
+(pe_mode, period), prints a summary table, writes
+`results/sweep_summary.json`, and renders `results/period_sweep.png`
+(test loss vs. P on a log-x axis, with baseline/RoPE as horizontal
+reference bands). `tests/test_analyze_sweep.py` (3 tests) checks the
+grouping/aggregation logic against synthetic final_result.json files
+without requiring a real sweep or matplotlib rendering to be correct.
+Manually smoke-tested end-to-end against 30 synthetic result files,
+including the actual PNG render.
+
+Full test suite: 59/59 passing.

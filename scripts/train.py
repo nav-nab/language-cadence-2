@@ -15,6 +15,24 @@ are shuffled each epoch via a seed that's a pure function of
 (--seed, epoch), so the shuffle never needs to be saved in the checkpoint --
 resuming just needs (epoch, position_in_epoch), which IS saved.
 
+Stage 5 protocol additions:
+  - Best-val-loss checkpoint (checkpoint_best.pt): tracked throughout
+    training and used for the reported test loss, instead of the final
+    step's weights. At N=1024, 3000 steps is ~7-8 epochs over the small
+    (6.5M-token) training set, so late-training overfitting is a real
+    possibility -- this avoids rewarding/penalizing a PE choice based on
+    where it happens to land after a fixed step count. best_val_loss/
+    best_step survive resume (stored in the main checkpoint).
+  - Hard divergence check: if the training loss ever goes non-finite, the
+    run halts immediately (before backward/optimizer.step() can further
+    corrupt the model) and writes divergence.json for inspection. The
+    last saved checkpoint is untouched, so the fix is to restart that run
+    (fresh --out_dir, or delete its checkpoint.pt) with a lower --lr --
+    not to resume it as-is.
+  - Soft spike warning: a step whose loss is far above the recent
+    exponential moving average is logged to warnings.log and stderr but
+    does not halt the run (early training is naturally noisy).
+
 Usage:
     python3 scripts/train.py --pe_mode periodic --period 45 --seed 0
     python3 scripts/train.py --pe_mode baseline --seed 1
@@ -24,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -109,6 +128,38 @@ def save_checkpoint(path: str, state: dict):
     os.replace(tmp_path, path)  # atomic on POSIX
 
 
+def check_finite_loss(loss_val: float, step: int, run_dir: str, run_id: str) -> None:
+    """Halt immediately (exit code 1) if the loss has gone non-finite, before
+    it can further corrupt the model via backward()/optimizer.step(). Writes
+    a diagnostic file so the run can be inspected and retried (e.g. with a
+    lower --lr) without losing the last valid checkpoint."""
+    if math.isfinite(loss_val):
+        return
+    diag = {"step": step, "run_id": run_id, "train_loss": loss_val}
+    with open(os.path.join(run_dir, "divergence.json"), "w", encoding="utf-8") as f:
+        json.dump(diag, f, indent=2)
+    print(f"[{run_id}] DIVERGED at step {step}: train_loss={loss_val} is not finite. "
+          f"The last saved checkpoint is unaffected -- restart this run (fresh --out_dir, "
+          f"or delete its checkpoint.pt) with a lower --lr rather than resuming as-is.",
+          file=sys.stderr)
+    sys.exit(1)
+
+
+def check_loss_spike(loss_val: float, loss_ema, step: int, run_dir: str, run_id: str,
+                      warmup_steps: int = 50, spike_ratio: float = 10.0, ema_alpha: float = 0.02):
+    """Soft warning (logged, not fatal) if a step's loss is far above the
+    recent exponential moving average. Returns the updated EMA."""
+    if loss_ema is None:
+        return loss_val
+    if step > warmup_steps and loss_val > spike_ratio * loss_ema:
+        msg = (f"[{run_id}] WARNING: loss spike at step {step}: train_loss={loss_val:.4f} "
+               f"vs recent avg {loss_ema:.4f}")
+        print(msg, file=sys.stderr)
+        with open(os.path.join(run_dir, "warnings.log"), "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+    return (1 - ema_alpha) * loss_ema + ema_alpha * loss_val
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--pe_mode", choices=["periodic", "baseline", "rope"], required=True)
@@ -138,6 +189,7 @@ def main():
     run_dir = os.path.join(args.out_dir, run_id)
     os.makedirs(run_dir, exist_ok=True)
     ckpt_path = os.path.join(run_dir, "checkpoint.pt")
+    best_ckpt_path = os.path.join(run_dir, "checkpoint_best.pt")
     metrics_path = os.path.join(run_dir, "metrics.jsonl")
 
     vocab = Vocab.load(args.vocab_path)
@@ -171,6 +223,8 @@ def main():
     ]
 
     start_step = 0
+    best_val_loss = float("inf")
+    best_step = 0
     if os.path.exists(ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=device)
         saved_cfg = ckpt["config"]
@@ -187,7 +241,10 @@ def main():
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         torch.set_rng_state(ckpt["torch_rng_state"])
         start_step = ckpt["step"]
-        print(f"[{run_id}] resuming from checkpoint at step {start_step}/{args.steps}")
+        best_val_loss = ckpt.get("best_val_loss", float("inf"))
+        best_step = ckpt.get("best_step", 0)
+        print(f"[{run_id}] resuming from checkpoint at step {start_step}/{args.steps} "
+              f"(best val_loss so far: {best_val_loss:.4f} at step {best_step})")
     else:
         print(f"[{run_id}] starting fresh: {count_params(model):,} params, "
               f"{n_chunks} train windows, {steps_per_epoch} steps/epoch")
@@ -197,6 +254,7 @@ def main():
     else:
         last_ckpt_time = time.time()
         step = start_step
+        loss_ema = None
         while step < args.steps:
             epoch = step // steps_per_epoch
             pos_in_epoch = step % steps_per_epoch
@@ -205,6 +263,9 @@ def main():
             x, y = get_batch(train_windows, perm, pos_in_epoch, args.batch_size, device)
             optimizer.zero_grad(set_to_none=True)
             _, loss = model(x, y)
+            loss_val = loss.item()
+            check_finite_loss(loss_val, step, run_dir, run_id)  # halts here if non-finite
+            loss_ema = check_loss_spike(loss_val, loss_ema, step, run_dir, run_id)
             loss.backward()
             optimizer.step()
             step += 1
@@ -212,13 +273,24 @@ def main():
             if step % args.eval_every_steps == 0 or step == args.steps:
                 val_loss = eval_loss(model, val_windows, args.eval_batches, args.batch_size, device)
                 rec = {
-                    "step": step, "epoch": epoch, "train_loss": loss.item(),
+                    "step": step, "epoch": epoch, "train_loss": loss_val,
                     "val_loss_subset": val_loss, "wall_time": time.time(),
                 }
                 with open(metrics_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(rec) + "\n")
                 print(f"[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
-                      f"train_loss={loss.item():.4f}  val_loss(subset)={val_loss:.4f}")
+                      f"train_loss={loss_val:.4f}  val_loss(subset)={val_loss:.4f}")
+
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_step = step
+                    save_checkpoint(best_ckpt_path, {
+                        "step": step,
+                        "val_loss": val_loss,
+                        "model_state_dict": model.state_dict(),
+                        "config": vars(args),
+                    })
+                    print(f"[{run_id}]   new best val_loss={val_loss:.4f} at step {step} -- checkpoint_best.pt updated")
 
             if time.time() - last_ckpt_time >= args.checkpoint_every_seconds or step == args.steps:
                 save_checkpoint(ckpt_path, {
@@ -226,21 +298,40 @@ def main():
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "torch_rng_state": torch.get_rng_state(),
+                    "best_val_loss": best_val_loss,
+                    "best_step": best_step,
                     "config": vars(args),
                 })
                 last_ckpt_time = time.time()
                 print(f"[{run_id}] checkpoint saved at step {step}")
 
-    # final full-test-set eval (only once, at the very end -- per the protocol,
-    # the periodic in-training numbers above are a cheap subset for the curve,
-    # this is the number that should be reported/plotted)
+    # Final eval uses the BEST-val-loss checkpoint, not the final step's
+    # weights (Stage 5 protocol) -- see module docstring for why.
+    if os.path.exists(best_ckpt_path):
+        best_ckpt = torch.load(best_ckpt_path, map_location=device)
+        model.load_state_dict(best_ckpt["model_state_dict"])
+    else:
+        print(f"[{run_id}] WARNING: no checkpoint_best.pt found (val loss never improved, or "
+              f"--eval_every_steps > --steps) -- using final-step weights for test eval instead.",
+              file=sys.stderr)
+
     test_ids = np.load(os.path.join(args.data_dir, "test_ids.npy"))
     test_windows = make_windows(test_ids, chunk_len)
     final_test_loss = full_eval_loss(model, test_windows, args.batch_size, device)
-    result = {"run_id": run_id, "final_test_loss": final_test_loss, "total_steps": args.steps}
+    result = {
+        "run_id": run_id,
+        "pe_mode": args.pe_mode,
+        "period": args.period,
+        "seed": args.seed,
+        "final_test_loss": final_test_loss,
+        "best_step": best_step,
+        "best_val_loss": best_val_loss,
+        "total_steps": args.steps,
+    }
     with open(os.path.join(run_dir, "final_result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"[{run_id}] DONE. final_test_loss={final_test_loss:.4f}")
+    print(f"[{run_id}] DONE. final_test_loss={final_test_loss:.4f} "
+          f"(from best-val checkpoint at step {best_step}, val_loss={best_val_loss:.4f})")
 
 
 if __name__ == "__main__":
