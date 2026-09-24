@@ -128,7 +128,7 @@ def save_checkpoint(path: str, state: dict):
     os.replace(tmp_path, path)  # atomic on POSIX
 
 
-def check_finite_loss(loss_val: float, step: int, run_dir: str, run_id: str) -> None:
+def check_finite_loss(loss_val: float, step: int, run_dir: str, run_id: str, sweep_tag: str = "") -> None:
     """Halt immediately (exit code 1) if the loss has gone non-finite, before
     it can further corrupt the model via backward()/optimizer.step(). Writes
     a diagnostic file so the run can be inspected and retried (e.g. with a
@@ -138,7 +138,7 @@ def check_finite_loss(loss_val: float, step: int, run_dir: str, run_id: str) -> 
     diag = {"step": step, "run_id": run_id, "train_loss": loss_val}
     with open(os.path.join(run_dir, "divergence.json"), "w", encoding="utf-8") as f:
         json.dump(diag, f, indent=2)
-    print(f"[{run_id}] DIVERGED at step {step}: train_loss={loss_val} is not finite. "
+    print(f"{sweep_tag}[{run_id}] DIVERGED at step {step}: train_loss={loss_val} is not finite. "
           f"The last saved checkpoint is unaffected -- restart this run (fresh --out_dir, "
           f"or delete its checkpoint.pt) with a lower --lr rather than resuming as-is.",
           file=sys.stderr)
@@ -146,13 +146,14 @@ def check_finite_loss(loss_val: float, step: int, run_dir: str, run_id: str) -> 
 
 
 def check_loss_spike(loss_val: float, loss_ema, step: int, run_dir: str, run_id: str,
-                      warmup_steps: int = 50, spike_ratio: float = 10.0, ema_alpha: float = 0.02):
+                      sweep_tag: str = "", warmup_steps: int = 50, spike_ratio: float = 10.0,
+                      ema_alpha: float = 0.02):
     """Soft warning (logged, not fatal) if a step's loss is far above the
     recent exponential moving average. Returns the updated EMA."""
     if loss_ema is None:
         return loss_val
     if step > warmup_steps and loss_val > spike_ratio * loss_ema:
-        msg = (f"[{run_id}] WARNING: loss spike at step {step}: train_loss={loss_val:.4f} "
+        msg = (f"{sweep_tag}[{run_id}] WARNING: loss spike at step {step}: train_loss={loss_val:.4f} "
                f"vs recent avg {loss_ema:.4f}")
         print(msg, file=sys.stderr)
         with open(os.path.join(run_dir, "warnings.log"), "a", encoding="utf-8") as f:
@@ -178,6 +179,10 @@ def main():
     p.add_argument("--checkpoint_every_seconds", type=float, default=600.0)  # 10 min, under the 30-min ceiling
     p.add_argument("--eval_every_steps", type=int, default=100)
     p.add_argument("--eval_batches", type=int, default=10)
+    p.add_argument("--sweep_index", type=int, default=None,
+                    help="This run's 1-based position in the sweep (display only, set by run_sweep.py).")
+    p.add_argument("--sweep_total", type=int, default=None,
+                    help="Total number of runs in the sweep (display only, set by run_sweep.py).")
     args = p.parse_args()
 
     if args.pe_mode == "periodic" and args.period is None:
@@ -186,6 +191,8 @@ def main():
     torch.manual_seed(args.seed)
 
     run_id = run_id_for(args)
+    sweep_tag = (f"[run {args.sweep_index}/{args.sweep_total}] "
+                 if args.sweep_index is not None and args.sweep_total is not None else "")
     run_dir = os.path.join(args.out_dir, run_id)
     os.makedirs(run_dir, exist_ok=True)
     ckpt_path = os.path.join(run_dir, "checkpoint.pt")
@@ -243,14 +250,14 @@ def main():
         start_step = ckpt["step"]
         best_val_loss = ckpt.get("best_val_loss", float("inf"))
         best_step = ckpt.get("best_step", 0)
-        print(f"[{run_id}] resuming from checkpoint at step {start_step}/{args.steps} "
+        print(f"{sweep_tag}[{run_id}] resuming from checkpoint at step {start_step}/{args.steps} "
               f"(best val_loss so far: {best_val_loss:.4f} at step {best_step})")
     else:
-        print(f"[{run_id}] starting fresh: {count_params(model):,} params, "
+        print(f"{sweep_tag}[{run_id}] starting fresh: {count_params(model):,} params, "
               f"{n_chunks} train windows, {steps_per_epoch} steps/epoch")
 
     if start_step >= args.steps:
-        print(f"[{run_id}] already complete ({start_step} >= {args.steps} steps).")
+        print(f"{sweep_tag}[{run_id}] already complete ({start_step} >= {args.steps} steps).")
     else:
         last_ckpt_time = time.time()
         step = start_step
@@ -264,8 +271,8 @@ def main():
             optimizer.zero_grad(set_to_none=True)
             _, loss = model(x, y)
             loss_val = loss.item()
-            check_finite_loss(loss_val, step, run_dir, run_id)  # halts here if non-finite
-            loss_ema = check_loss_spike(loss_val, loss_ema, step, run_dir, run_id)
+            check_finite_loss(loss_val, step, run_dir, run_id, sweep_tag)  # halts here if non-finite
+            loss_ema = check_loss_spike(loss_val, loss_ema, step, run_dir, run_id, sweep_tag)
             loss.backward()
             optimizer.step()
             step += 1
@@ -278,7 +285,7 @@ def main():
                 }
                 with open(metrics_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(rec) + "\n")
-                print(f"[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
+                print(f"{sweep_tag}[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
                       f"train_loss={loss_val:.4f}  val_loss(subset)={val_loss:.4f}")
 
                 if val_loss < best_val_loss:
@@ -290,7 +297,7 @@ def main():
                         "model_state_dict": model.state_dict(),
                         "config": vars(args),
                     })
-                    print(f"[{run_id}]   new best val_loss={val_loss:.4f} at step {step} -- checkpoint_best.pt updated")
+                    print(f"{sweep_tag}[{run_id}]   new best val_loss={val_loss:.4f} at step {step} -- checkpoint_best.pt updated")
 
             if time.time() - last_ckpt_time >= args.checkpoint_every_seconds or step == args.steps:
                 save_checkpoint(ckpt_path, {
@@ -303,7 +310,7 @@ def main():
                     "config": vars(args),
                 })
                 last_ckpt_time = time.time()
-                print(f"[{run_id}] checkpoint saved at step {step}")
+                print(f"{sweep_tag}[{run_id}] checkpoint saved at step {step}")
 
     # Final eval uses the BEST-val-loss checkpoint, not the final step's
     # weights (Stage 5 protocol) -- see module docstring for why.
@@ -311,7 +318,7 @@ def main():
         best_ckpt = torch.load(best_ckpt_path, map_location=device)
         model.load_state_dict(best_ckpt["model_state_dict"])
     else:
-        print(f"[{run_id}] WARNING: no checkpoint_best.pt found (val loss never improved, or "
+        print(f"{sweep_tag}[{run_id}] WARNING: no checkpoint_best.pt found (val loss never improved, or "
               f"--eval_every_steps > --steps) -- using final-step weights for test eval instead.",
               file=sys.stderr)
 
@@ -330,7 +337,7 @@ def main():
     }
     with open(os.path.join(run_dir, "final_result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-    print(f"[{run_id}] DONE. final_test_loss={final_test_loss:.4f} "
+    print(f"{sweep_tag}[{run_id}] DONE. final_test_loss={final_test_loss:.4f} "
           f"(from best-val checkpoint at step {best_step}, val_loss={best_val_loss:.4f})")
 
 

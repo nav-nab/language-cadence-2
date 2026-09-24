@@ -121,3 +121,20 @@ def test_best_checkpoint_survives_resume(tmp_path):
     assert result["best_val_loss"] == pytest.approx(best_overall["val_loss_subset"], abs=1e-6)
     # sanity: the pre-resume best is still one of the logged 10 entries
     assert any(m["step"] == best_after_5["step"] for m in metrics_after_10)
+
+
+@pytest.mark.slow
+def test_sweep_tag_appears_in_progress_output(tmp_path):
+    data_dir = str(tmp_path)
+    vocab_path = os.path.join(data_dir, "vocab.json")
+    _make_tiny_corpus(data_dir, vocab_path, n_tokens=2000, vocab_size=24)
+
+    result = _run(data_dir, steps=3, overrides={"--sweep_index": "3", "--sweep_total": "30"})
+    assert "[run 3/30]" in result.stdout
+
+    # and the no-tag path (a lone train.py invocation) stays untagged
+    other_dir = os.path.join(data_dir, "untagged")
+    os.makedirs(other_dir)
+    _make_tiny_corpus(other_dir, os.path.join(other_dir, "vocab.json"), n_tokens=2000, vocab_size=24)
+    result2 = _run(other_dir, steps=3)
+    assert "[run" not in result2.stdout

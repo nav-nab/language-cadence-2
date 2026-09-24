@@ -82,7 +82,9 @@ def main():
                "--pe_mode", cfg["pe_mode"],
                "--seed", str(cfg["seed"]),
                "--steps", str(args.steps),
-               "--out_dir", args.out_dir]
+               "--out_dir", args.out_dir,
+               "--sweep_index", str(i),
+               "--sweep_total", str(len(configs))]
         if cfg["period"] is not None:
             cmd += ["--period", str(cfg["period"])]
 
