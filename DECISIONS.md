@@ -240,4 +240,4 @@ the provisional Brown-based vocab, now rebuilt from the real corpus):
 will be hit on under 1% of tokens, i.e. rare as intended. Full curve and
 numbers in `results/vocab_coverage.json`. Chosen vocabulary saved to
 `configs/vocab.json` (8000 pieces incl. 4 special tokens, ranked by train
-frequency). Pending Navid's sign-off before this is treated as frozen.
+frequency). **Frozen** (confirmed by Navid, 2026-09-24).
