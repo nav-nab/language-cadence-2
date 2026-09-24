@@ -1,0 +1,62 @@
+{
+  "total_train_tokens": 6398658,
+  "total_val_tokens": 356257,
+  "total_test_tokens": 356645,
+  "n_distinct_pieces_in_train": 19286,
+  "candidate_sizes_curve": [
+    {
+      "vocab_size": 1000,
+      "train_coverage": 0.8822696884252916,
+      "val_coverage": 0.8751210502530476
+    },
+    {
+      "vocab_size": 2000,
+      "train_coverage": 0.9430643112977752,
+      "val_coverage": 0.9384348939108564
+    },
+    {
+      "vocab_size": 3000,
+      "train_coverage": 0.9667180211850672,
+      "val_coverage": 0.9632344066221856
+    },
+    {
+      "vocab_size": 4000,
+      "train_coverage": 0.9787672665111966,
+      "val_coverage": 0.9757590728041835
+    },
+    {
+      "vocab_size": 6000,
+      "train_coverage": 0.9899527369645322,
+      "val_coverage": 0.9874612990060546
+    },
+    {
+      "vocab_size": 8000,
+      "train_coverage": 0.9946882611947693,
+      "val_coverage": 0.9924661129465526
+    },
+    {
+      "vocab_size": 10000,
+      "train_coverage": 0.9970284394008869,
+      "val_coverage": 0.9951243063294195
+    },
+    {
+      "vocab_size": 12000,
+      "train_coverage": 0.9982996434564873,
+      "val_coverage": 0.9965446292985121
+    },
+    {
+      "vocab_size": 16000,
+      "train_coverage": 0.9994864548159942,
+      "val_coverage": 0.9977432022388332
+    },
+    {
+      "vocab_size": 19286,
+      "train_coverage": 1.0,
+      "val_coverage": 0.9982737181304507
+    }
+  ],
+  "chosen_size": 8000,
+  "chosen_val_coverage": 0.9924661129465526,
+  "chosen_train_coverage": 0.9946882611947693,
+  "chosen_test_coverage": 0.992146251875114
+}

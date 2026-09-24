@@ -209,3 +209,35 @@ Output: `data/processed/{train,val,test}.jsonl`, one record per talk
 (talkid, speaker, date, title, cleaned content, word count). The
 intermediate unfiltered `data/processed/talks.jsonl` is regenerable by
 `scripts/parse_wit3.py` and not needed going forward.
+
+## 2026-09-24 — Vocabulary rebuilt from WIT3, size proposed (pending sign-off)
+
+Tokenized train/val/test with `syllable_tokenizer` (chunked across several
+calls via `scripts/tokenize_corpus_chunk.py` since tokenizing the full
+~3.9M-word train split in one call risked the shell's time limit; merged
+piece-frequency counters). `scripts/finalize_vocab.py` builds the
+coverage-vs-size curve and writes the chosen vocab.
+
+Coverage curve (train / held-out val), by vocab size:
+
+| size  | train coverage | val coverage |
+|-------|-----------------|--------------|
+| 1000  | 88.23%          | 87.51%       |
+| 2000  | 94.31%          | 93.84%       |
+| 3000  | 96.67%          | 96.32%       |
+| 4000  | 97.88%          | 97.58%       |
+| 6000  | 99.00%          | 98.75%       |
+| 8000  | 99.47%          | 99.25%       |
+| 10000 | 99.70%          | 99.51%       |
+| 12000 | 99.83%          | 99.65%       |
+| 16000 | 99.95%          | 99.77%       |
+| 19286 (all distinct train pieces) | 100.00% | 99.83% |
+
+Diminishing returns kick in hard after 8000 (each further +2000 buys well
+under +0.3pp of val coverage). **Proposing vocab size 8000** (same size as
+the provisional Brown-based vocab, now rebuilt from the real corpus):
+99.25% held-out coverage on val, 99.21% on test -- the character fallback
+will be hit on under 1% of tokens, i.e. rare as intended. Full curve and
+numbers in `results/vocab_coverage.json`. Chosen vocabulary saved to
+`configs/vocab.json` (8000 pieces incl. 4 special tokens, ranked by train
+frequency). Pending Navid's sign-off before this is treated as frozen.
