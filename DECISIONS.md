@@ -159,3 +159,53 @@ the parser.
 
 Preprocessing and the train/val/test split are proposed next and will be
 checked with Navid before freezing, per the brief.
+
+## 2026-09-24 — Preprocessing frozen and applied
+
+Checked with Navid; punctuation handling was reconsidered (see below) and
+everything else confirmed as proposed. Frozen preprocessing, applied by
+`scripts/preprocess_wit3.py`:
+
+1. **Cue stripping**: parenthetical audience/audio cues (`(Laughter)`,
+   `(Applause)`, `(Music)`, `(In Chinese)`, etc., regex
+   `\([A-Za-z][A-Za-z '\-]{1,40}\)`) are removed and surrounding whitespace
+   collapsed. Dropped outright rather than replaced with a placeholder
+   token.
+2. **Minimum talk length**: drop talks under 100 words, measured AFTER cue
+   stripping (so a talk that's mostly cues doesn't survive on cue-word
+   count alone). 11 talks dropped (one more than the pre-cleaning estimate
+   of 10, since removing cue words like "Applause"/"Laughter" pushed one
+   additional talk below the threshold).
+3. **Dedupe by talkid**: kept as a safety check in the pipeline; this
+   release has zero duplicates, so it's a no-op here.
+4. **Casing**: kept as original (not lowercased upstream) — the syllable
+   tokenizer already lowercases internally, so there's no information lost
+   either way, and no reason to lowercase the stored/committed-config-
+   adjacent corpus text unnecessarily.
+5. **Punctuation**: kept, reversing my initial lean toward dropping it.
+   Punctuation is 10.1% of the token stream on a 150-talk sample (comma
+   7.6pp of that on its own), which is nontrivial, but Navid's call was to
+   keep it: commas/periods plausibly stand in for clause/sentence-boundary
+   pauses in this transcribed-speech corpus, which is closer to signal than
+   noise for a project whose original framing (see
+   language-cadence-research) was about rhythmic/timing structure, even
+   though the current framing is "training efficiency" specifically. Worth
+   carrying into the write-up as a documented, deliberate choice with a
+   stated tradeoff (easier-to-predict punctuation tokens do dilute the
+   pure syllable-prediction signal somewhat), not a default.
+6. **Digits**: kept as-is; the tokenizer already splits them into
+   single-digit tokens.
+7. **Train/val/test split**: by SPEAKER, not by talk. Talks are grouped by
+   speaker, speaker groups sorted by total word count descending, and each
+   group greedily assigned whole to whichever split has the largest
+   remaining deficit against its target word-count share (90/5/5). Result:
+   train 1667 talks / 3,893,364 words (90.00% by word share) / 1363
+   speakers; val 202 talks / 216,272 words (5.00%) / 197 speakers; test 205
+   talks / 216,365 words (5.00%) / 198 speakers. Verified zero speaker
+   overlap between any pair of splits. Full report in
+   `results/wit3_preprocess_report.json`.
+
+Output: `data/processed/{train,val,test}.jsonl`, one record per talk
+(talkid, speaker, date, title, cleaned content, word count). The
+intermediate unfiltered `data/processed/talks.jsonl` is regenerable by
+`scripts/parse_wit3.py` and not needed going forward.

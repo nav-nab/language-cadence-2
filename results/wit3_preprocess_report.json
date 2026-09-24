@@ -1,0 +1,29 @@
+{
+  "n_talks_before": 2085,
+  "n_talks_after_dedupe": 2085,
+  "n_duplicates_removed": 0,
+  "n_talks_after_min_length_filter": 2074,
+  "n_talks_dropped_for_length": 11,
+  "min_words_threshold": 100,
+  "total_words_final": 4326001,
+  "splits": {
+    "train": {
+      "n_talks": 1667,
+      "n_words": 3893364,
+      "word_share": 0.8999914701822769,
+      "n_distinct_speakers": 1363
+    },
+    "val": {
+      "n_talks": 202,
+      "n_words": 216272,
+      "word_share": 0.0499935159515682,
+      "n_distinct_speakers": 197
+    },
+    "test": {
+      "n_talks": 205,
+      "n_words": 216365,
+      "word_share": 0.05001501386615491,
+      "n_distinct_speakers": 198
+    }
+  }
+}
