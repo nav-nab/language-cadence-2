@@ -1,0 +1,18 @@
+# language-cadence-2 dependencies.
+#
+# Install with the SAME python3/pip you use to run scripts/train.py and
+# scripts/run_sweep.py -- if you have more than one Python installed
+# (Homebrew, pyenv, system /usr/bin/python3, etc.), a package installed
+# for one of them will not be visible to another, which is exactly what
+# causes a "ModuleNotFoundError" even though the package appears to be
+# installed. To be sure, use:
+#
+#   python3 -m pip install -r requirements.txt
+#
+# (that guarantees pip installs into the same interpreter that
+# `python3 scripts/run_sweep.py` will use).
+numpy>=2.0
+torch>=2.0
+pyphen>=0.17
+nltk>=3.9
+matplotlib>=3.9
