@@ -241,3 +241,94 @@ will be hit on under 1% of tokens, i.e. rare as intended. Full curve and
 numbers in `results/vocab_coverage.json`. Chosen vocabulary saved to
 `configs/vocab.json` (8000 pieces incl. 4 special tokens, ranked by train
 frequency). **Frozen** (confirmed by Navid, 2026-09-24).
+
+## 2026-09-24 — Stage 4 implementation: model, PE, training loop
+
+`src/positional_encoding.py`: `sinusoidal_pe` (fixed Vaswani-style base),
+`periodic_pe` (v1's folded-harmonic construction, H=D/2 row-pairs,
+k_j = min(j mod P, P-(j mod P))), `combined_pe` (base + periodic, or base
+alone when period=None -- the no-periodic-component baseline).
+
+`src/model.py`: `GPT` supports three `pe_mode`s: `"periodic"` and
+`"baseline"` both use concat injection (`Linear(concat(token_emb, PE))`,
+no amplitude hyperparameter needed); `"rope"` instead applies rotary
+embeddings to queries/keys inside attention, with no additive/concat PE at
+all. `tests/test_model.py` (11 tests) checks PE correctness (periodicity,
+folded-harmonic formula, baseline-equals-sinusoidal), forward/backward
+passes for all three modes, and confirms the frozen architecture lands at
+~2.87M params as estimated (2,874,240 for periodic/baseline; 2,841,344 for
+rope, which has no concat_proj layer).
+
+Encoded the corpus to flat token-id arrays for training:
+`scripts/encode_corpus_chunk.py` + `scripts/finalize_encoded_corpus.py`
+(chunked, same reasoning as the vocab-building step) -> `data/processed/
+{train,val,test}_ids.npy` (uint16; talks separated by `<eos>`). Train:
+6,520,940 ids; val: 365,439; test: 366,465.
+
+**Real benchmark of the frozen architecture** (`scripts/benchmark_real_arch.py`,
+D=128/L4/H4/N=1024/vocab=8000/batch=16), replacing the earlier analytical
+FLOP estimate:
+
+| mode | step time | 3000-step run |
+|---|---|---|
+| periodic | 1.70s | 1.42h |
+| baseline | 1.87s | 1.56h |
+| rope | 1.83s | 1.52h |
+
+Faster than the analytical ~2.16h/run estimate -- full plan (24 core-sweep
+runs + 3 baseline + 3 RoPE control runs) now estimated at ~43.4h, under the
+48h budget but with little margin once data loading/eval overhead is added.
+
+**Memory finding**: peak RSS 3.1-3.4GB during the benchmark, against the
+sandboxed VM's ~3.8GB ceiling -- a real OOM risk if training ran in this
+VM. Resolved by Navid's plan to run the actual training loop on his own
+machine (outside the sandbox) rather than in this Cowork session's VM,
+which almost certainly has more headroom (the VM is a constrained sandbox,
+not the real hardware). Batch size is a config value in `scripts/train.py`
+so it can be adjusted if real-machine memory still turns out to be tight.
+
+**Epoch-count note**: at N=1024 (vs v1's 384), the ~6.52M-token training
+set gives only ~6362 non-overlapping (1025-token) windows, so 3000 steps x
+batch 16 is roughly 7-8 passes over the training data, not "~1 epoch" as
+the original protocol sketch assumed for a different architecture. This
+affects what the "roughly one epoch / mid-budget / end" checkpoint
+timing (from the brief's suggested protocol) should actually mean here --
+flagged for Stage 5 (experiment protocol), not yet resolved.
+
+**`scripts/train.py`**: resumable single-run trainer (one pe_mode/period/
+seed combination), built to run on Navid's own machine.
+- Data: non-overlapping (seq_len+1)-token windows over the encoded corpus,
+  shuffled per epoch via a seed that's a pure function of (--seed, epoch)
+  (`numpy.random.RandomState(seed*100000 + epoch)`), so the shuffle order
+  never needs to be persisted -- resuming only needs (epoch, position-in-
+  epoch), which the checkpoint does store. This is the "more standard"
+  epoch-based approach v1 flagged as preferable to sampling-with-replacement.
+- Checkpointing is WALL-CLOCK-timed (`--checkpoint_every_seconds`, default
+  600s = 10 min), not step-count-timed, per Navid's requirement that an
+  interruption cost at most 30 minutes regardless of a given machine/
+  config's actual step speed. Checkpoints are written atomically (temp
+  file + `os.replace`). Re-running the identical command resumes
+  automatically -- no separate `--resume` flag.
+- A checkpoint's config is checked against the new invocation's args on
+  resume, but only for the subset that affects model/data/determinism
+  (pe_mode, period, seed, batch_size, seq_len, d_model, n_layers, n_heads,
+  lr, vocab_path, data_dir) -- `--steps`, `--eval_every_steps`, etc. are
+  deliberately excluded so extending a run's step budget doesn't get
+  wrongly rejected as a "mismatch" (an actual bug caught by the test suite
+  below and fixed before this was committed).
+- Metrics (train loss + cheap val-subset loss) are appended to
+  `metrics.jsonl` incrementally, so progress survives an interruption even
+  between checkpoints. A full test-set evaluation runs once at the end.
+- `tests/test_train_resume.py`: functional test (tiny synthetic corpus/
+  vocab, real subprocess invocations of the actual script) proving an
+  interrupted-then-resumed run (steps 0->3, then 3->6) produces
+  bit-identical final model weights and test loss to a straight-through
+  0->6 run, with no duplicate/missing metrics entries. Caught two real
+  bugs before they could have cost real compute time: (1) `.view()` on a
+  non-contiguous tensor in the loss computation at small dimensions
+  (fixed with `.reshape()`); (2) the initial config-mismatch check
+  compared ALL args including `--steps`, which would have refused to
+  resume a run being extended to a longer step budget -- fixed to check
+  only the identity-critical subset above.
+
+Full test suite: 48/48 passing.
