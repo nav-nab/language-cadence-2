@@ -9,16 +9,19 @@
 #
 #   python3 -m pip install --upgrade -r requirements.txt
 #
-# numpy and torch are pinned to an exact, tested-together pair (rather
-# than a loose lower bound) because a PyTorch build compiled against
-# NumPy 1.x will crash with confusing numpy-related errors if a newer
-# NumPy 2.x gets installed next to it without upgrading PyTorch too --
-# pinning both forces pip to bring them into a matched pair instead of
-# silently leaving a stale, incompatible one in place. --upgrade above
-# is what makes pip actually replace an existing mismatched install
-# rather than treating "torch is already present" as satisfied.
-numpy==2.2.6
-torch==2.14.0
+# numpy and torch are pinned to an exact, matched pair (rather than a
+# loose lower bound) because an ABI mismatch between them produces
+# confusing numpy-related crashes, not a clean error. The specific pair
+# below is pinned for Intel Macs (x86_64): PyTorch stopped publishing
+# x86_64 macOS wheels after 2.2.2, and 2.2.x was built against NumPy's
+# 1.x C API, not 2.x -- so it must be paired with a pre-2.0 NumPy.
+#
+# On Apple Silicon (arm64) or Linux, newer matched pairs are available
+# (e.g. torch>=2.3 with numpy>=2.0) and these pins can be relaxed --
+# but pin to whatever your `pip install torch==` version-list actually
+# offers for your machine, don't just bump the number blindly.
+numpy==1.26.4
+torch==2.2.2
 pyphen>=0.17
 nltk>=3.9
 matplotlib>=3.9
