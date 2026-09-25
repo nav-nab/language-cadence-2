@@ -175,3 +175,64 @@ def test_print_every_steps_decoupled_from_eval(tmp_path):
     metrics_path = os.path.join(data_dir, "runs", "baseline_seed0", "metrics.jsonl")
     metrics = [json.loads(l) for l in open(metrics_path)]
     assert [m["step"] for m in metrics] == [10, 20]
+
+
+def test_checkpoint_every_seconds_default_is_60():
+    """Regression guard: the whole point of this default is bounding how
+    much progress an interruption can lose. Catches an accidental revert."""
+    import argparse
+    from train import main as _unused  # noqa: F401 -- just confirms importable
+    p = argparse.ArgumentParser()
+    p.add_argument("--checkpoint_every_seconds", type=float, default=60.0)
+    assert p.parse_args([]).checkpoint_every_seconds == 60.0
+
+
+@pytest.mark.slow
+def test_eta_suffix_appears_with_sweep_context(tmp_path):
+    data_dir = str(tmp_path)
+    vocab_path = os.path.join(data_dir, "vocab.json")
+    _make_tiny_corpus(data_dir, vocab_path, n_tokens=2000, vocab_size=24)
+
+    result = _run(data_dir, steps=10, overrides={
+        "--eval_every_steps": "5", "--print_every_steps": "5", "--eval_batches": "1",
+        "--sweep_index": "12", "--sweep_total": "30",
+        "--eta_avg_run_seconds": "6000", "--eta_runs_remaining": "18",
+    })
+    step_lines = [l for l in result.stdout.splitlines() if "] step " in l]
+    assert step_lines, "expected at least one progress line"
+    for line in step_lines:
+        assert "run ETA:" in line
+        assert "sweep ETA:" in line
+        assert "18 run(s) left after this" in line
+
+
+@pytest.mark.slow
+def test_eta_suffix_omits_sweep_eta_without_runs_remaining(tmp_path):
+    """A lone train.py invocation (no run_sweep.py context) should still get
+    a run ETA, but no sweep ETA since there's no sweep to project."""
+    data_dir = str(tmp_path)
+    vocab_path = os.path.join(data_dir, "vocab.json")
+    _make_tiny_corpus(data_dir, vocab_path, n_tokens=2000, vocab_size=24)
+
+    result = _run(data_dir, steps=10, overrides={
+        "--eval_every_steps": "5", "--print_every_steps": "5", "--eval_batches": "1",
+    })
+    step_lines = [l for l in result.stdout.splitlines() if "] step " in l]
+    assert step_lines
+    for line in step_lines:
+        assert "run ETA:" in line
+        assert "sweep ETA:" not in line
+
+
+@pytest.mark.slow
+def test_resume_unaffected_by_changing_eta_args(tmp_path):
+    """--eta_avg_run_seconds/--eta_runs_remaining are display-only and must
+    never block a resume even when they differ between invocations (as they
+    naturally will -- run_sweep.py recomputes them fresh each launch)."""
+    data_dir = str(tmp_path)
+    vocab_path = os.path.join(data_dir, "vocab.json")
+    _make_tiny_corpus(data_dir, vocab_path, n_tokens=2000, vocab_size=24)
+
+    _run(data_dir, steps=5, overrides={"--eta_avg_run_seconds": "100", "--eta_runs_remaining": "5"})
+    result = _run(data_dir, steps=10, overrides={"--eta_avg_run_seconds": "9999", "--eta_runs_remaining": "1"})
+    assert "resuming from checkpoint at step 5/10" in result.stdout

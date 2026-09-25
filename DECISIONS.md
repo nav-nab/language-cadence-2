@@ -444,3 +444,45 @@ metrics.jsonl still only logs on eval steps (not print steps) -- i.e.
 the cheap prints really are free of the eval-cadence's overhead.
 
 Full suite: 61/61 passing.
+
+## 2026-09-25 — More frequent checkpointing + live ETA
+
+Navid reported that interrupting the sweep felt like it lost the current
+run's progress. Investigated read-only against the real paused run
+(periodic_P9_seed2, 11 runs already completed) before changing anything:
+its checkpoint.pt genuinely held step 652 and would resume correctly --
+the mechanism wasn't broken. The real cause was the checkpoint interval
+(--checkpoint_every_seconds default 600s = 10 min): interrupting more
+often than that window, which is easy to do when checking in casually,
+means a chunk of progress since the last checkpoint is genuinely gone
+each time, which reads as "keeps starting over."
+
+Fix: lowered --checkpoint_every_seconds default to 60s. A checkpoint
+write is ~30-35MB to local SSD, a small fraction of a second against
+~1.8s/step, so checkpointing 10x more often costs negligible overhead.
+Verified (read-only, before and after the code change) that the paused
+run's real checkpoint at step 652 is untouched and would still resume
+correctly -- checkpoint format didn't change, and checkpoint_every_seconds
+was already outside IDENTITY_KEYS, so this can't trigger a resume
+mismatch. All 11 completed runs' final_result.json files are also
+untouched (run_sweep.py's skip-by-completion logic is unchanged).
+
+Also added, per Navid's request: a live ETA on every progress line.
+train.py now prints "run ETA: ..." (from this invocation's own live
+step rate since it started/resumed -- not a stale historical average)
+and, when launched by run_sweep.py, "sweep ETA: ... (N run(s) left
+after this)" (current run's ETA plus N x the average real duration of
+runs already completed in this sweep, measured from their metrics.jsonl,
+recomputed fresh before each launch so it gets more accurate as the
+sweep progresses). Falls back to self-extrapolating this run's own rate
+if no runs have completed yet. Both new --eta_avg_run_seconds/
+--eta_runs_remaining args are display-only and deliberately excluded
+from IDENTITY_KEYS.
+
+8 new tests (test_checkpoint_every_seconds_default_is_60,
+test_eta_suffix_appears_with_sweep_context,
+test_eta_suffix_omits_sweep_eta_without_runs_remaining,
+test_resume_unaffected_by_changing_eta_args in test_train_protocol.py;
+measure/average_completed_run_seconds tests in test_run_sweep.py).
+
+Full suite: 69/69 passing.

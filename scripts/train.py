@@ -128,6 +128,46 @@ def save_checkpoint(path: str, state: dict):
     os.replace(tmp_path, path)  # atomic on POSIX
 
 
+def format_duration(seconds) -> str:
+    """Human-readable duration for ETA display. None/NaN/negative -> "?"."""
+    if seconds is None or seconds != seconds or seconds < 0:
+        return "?"
+    seconds = int(seconds)
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    if h > 0:
+        return f"{h}h{m:02d}m"
+    if m > 0:
+        return f"{m}m{s:02d}s"
+    return f"{s}s"
+
+
+def compute_eta(step: int, start_step: int, args_steps: int, invocation_start_time: float,
+                 eta_avg_run_seconds, eta_runs_remaining) -> str:
+    """Build the " run ETA: ... | sweep ETA: ..." suffix for a progress line.
+
+    The run ETA is measured live from THIS invocation's own step rate (steps
+    since it was started/resumed, not the whole run's history), so it
+    reflects current machine conditions rather than a stale average. The
+    sweep ETA additionally projects the remaining runs using the average
+    duration of runs already completed in this sweep (passed in by
+    run_sweep.py from real measured timings); if none have completed yet, it
+    falls back to this run's own live rate as a stand-in estimate."""
+    steps_this_invocation = step - start_step
+    if steps_this_invocation <= 0:
+        return ""
+    elapsed = time.time() - invocation_start_time
+    sec_per_step = elapsed / steps_this_invocation
+    current_run_eta = (args_steps - step) * sec_per_step
+
+    suffix = f"  run ETA: {format_duration(current_run_eta)}"
+    if eta_runs_remaining is not None:
+        future_run_seconds = eta_avg_run_seconds if eta_avg_run_seconds is not None else sec_per_step * args_steps
+        sweep_eta = current_run_eta + future_run_seconds * eta_runs_remaining
+        suffix += f" | sweep ETA: {format_duration(sweep_eta)} ({eta_runs_remaining} run(s) left after this)"
+    return suffix
+
+
 def check_finite_loss(loss_val: float, step: int, run_dir: str, run_id: str, sweep_tag: str = "") -> None:
     """Halt immediately (exit code 1) if the loss has gone non-finite, before
     it can further corrupt the model via backward()/optimizer.step(). Writes
@@ -176,7 +216,7 @@ def main():
     p.add_argument("--vocab_path", default="configs/vocab.json")
     p.add_argument("--data_dir", default="data/processed")
     p.add_argument("--out_dir", default="runs")
-    p.add_argument("--checkpoint_every_seconds", type=float, default=600.0)  # 10 min, under the 30-min ceiling
+    p.add_argument("--checkpoint_every_seconds", type=float, default=60.0)  # 1 min -- checkpoint I/O (~tens of MB) is negligible next to ~1.8s/step
     p.add_argument("--eval_every_steps", type=int, default=100)
     p.add_argument("--eval_batches", type=int, default=10)
     p.add_argument("--print_every_steps", type=int, default=10,
@@ -188,6 +228,13 @@ def main():
                     help="This run's 1-based position in the sweep (display only, set by run_sweep.py).")
     p.add_argument("--sweep_total", type=int, default=None,
                     help="Total number of runs in the sweep (display only, set by run_sweep.py).")
+    p.add_argument("--eta_avg_run_seconds", type=float, default=None,
+                    help="Average wall-clock duration of a completed run in this sweep so far "
+                         "(display only, set by run_sweep.py from real completed-run timings). "
+                         "Used to project the total sweep ETA beyond this run.")
+    p.add_argument("--eta_runs_remaining", type=int, default=None,
+                    help="Number of runs left in the sweep AFTER this one (display only, set by "
+                         "run_sweep.py).")
     args = p.parse_args()
 
     if args.pe_mode == "periodic" and args.period is None:
@@ -265,6 +312,7 @@ def main():
         print(f"{sweep_tag}[{run_id}] already complete ({start_step} >= {args.steps} steps).", flush=True)
     else:
         last_ckpt_time = time.time()
+        invocation_start_time = time.time()
         step = start_step
         loss_ema = None
         while step < args.steps:
@@ -293,8 +341,10 @@ def main():
                 }
                 with open(metrics_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(rec) + "\n")
+                eta_suffix = compute_eta(step, start_step, args.steps, invocation_start_time,
+                                          args.eta_avg_run_seconds, args.eta_runs_remaining)
                 print(f"{sweep_tag}[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
-                      f"train_loss={loss_val:.4f}  val_loss(subset)={val_loss:.4f}", flush=True)
+                      f"train_loss={loss_val:.4f}  val_loss(subset)={val_loss:.4f}{eta_suffix}", flush=True)
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -307,8 +357,10 @@ def main():
                     })
                     print(f"{sweep_tag}[{run_id}]   new best val_loss={val_loss:.4f} at step {step} -- checkpoint_best.pt updated", flush=True)
             elif is_print_step:
+                eta_suffix = compute_eta(step, start_step, args.steps, invocation_start_time,
+                                          args.eta_avg_run_seconds, args.eta_runs_remaining)
                 print(f"{sweep_tag}[{run_id}] step {step}/{args.steps} (epoch {epoch})  "
-                      f"train_loss={loss_val:.4f}", flush=True)
+                      f"train_loss={loss_val:.4f}{eta_suffix}", flush=True)
 
             if time.time() - last_ckpt_time >= args.checkpoint_every_seconds or step == args.steps:
                 save_checkpoint(ckpt_path, {

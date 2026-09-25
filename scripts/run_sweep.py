@@ -27,6 +27,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import glob
+import json
 import os
 import subprocess
 import sys
@@ -34,6 +36,43 @@ import sys
 PERIODS = [2, 3, 6, 9, 16, 45, 128, 1024]
 SEEDS = [0, 1, 2]
 TRAIN_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train.py")
+
+from train import format_duration  # noqa: E402 -- reuse train.py's duration formatter
+
+
+def measure_completed_run_seconds(run_dir: str) -> float | None:
+    """Estimate a completed run's total wall-clock duration from its
+    metrics.jsonl, extrapolated from the logged step range to the full
+    target step count (final_result.json's total_steps). Returns None if
+    the run isn't complete or doesn't have enough logged points to
+    estimate from."""
+    result_path = os.path.join(run_dir, "final_result.json")
+    metrics_path = os.path.join(run_dir, "metrics.jsonl")
+    if not os.path.exists(result_path) or not os.path.exists(metrics_path):
+        return None
+    result = json.load(open(result_path))
+    records = [json.loads(l) for l in open(metrics_path) if l.strip()]
+    if len(records) < 2:
+        return None
+    first, last = records[0], records[-1]
+    step_span = last["step"] - first["step"]
+    if step_span <= 0:
+        return None
+    seconds_per_step = (last["wall_time"] - first["wall_time"]) / step_span
+    return seconds_per_step * result["total_steps"]
+
+
+def average_completed_run_seconds(out_dir: str) -> float | None:
+    """Average measured duration across every completed run currently on
+    disk (recomputed fresh each call, so it gets more accurate as the
+    sweep progresses across separate invocations/interruptions)."""
+    durations = []
+    for run_dir in sorted(glob.glob(os.path.join(out_dir, "*"))):
+        if os.path.isdir(run_dir):
+            d = measure_completed_run_seconds(run_dir)
+            if d is not None:
+                durations.append(d)
+    return sum(durations) / len(durations) if durations else None
 
 
 def build_configs() -> list[dict]:
@@ -78,17 +117,27 @@ def main():
             skipped.append(run_id)
             continue
 
+        runs_remaining_after_this = len(configs) - i
+        avg_run_seconds = average_completed_run_seconds(args.out_dir)
+
         cmd = [sys.executable, TRAIN_SCRIPT,
                "--pe_mode", cfg["pe_mode"],
                "--seed", str(cfg["seed"]),
                "--steps", str(args.steps),
                "--out_dir", args.out_dir,
                "--sweep_index", str(i),
-               "--sweep_total", str(len(configs))]
+               "--sweep_total", str(len(configs)),
+               "--eta_runs_remaining", str(runs_remaining_after_this)]
         if cfg["period"] is not None:
             cmd += ["--period", str(cfg["period"])]
-
+        if avg_run_seconds is not None:
+            cmd += ["--eta_avg_run_seconds", str(avg_run_seconds)]
         print(f"[{i}/{len(configs)}] {run_id}: {' '.join(cmd)}")
+        if avg_run_seconds is not None:
+            projected = avg_run_seconds * runs_remaining_after_this
+            print(f"    (avg completed-run duration so far: {format_duration(avg_run_seconds)}; "
+                  f"projected time for the {runs_remaining_after_this} run(s) after this one: "
+                  f"{format_duration(projected)})")
         if args.dry_run:
             continue
 
