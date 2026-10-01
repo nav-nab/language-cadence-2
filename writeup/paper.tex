@@ -84,7 +84,7 @@ We built a piece vocabulary directly from the training split of the dataset desc
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.75\textwidth]{figures/vocab_coverage_curve.png}
+\includegraphics[width=0.95\textwidth]{figures/vocab_coverage_curve.png}
 \caption{Syllable-piece vocabulary coverage as a function of vocabulary size, measured on the training split (used to build the vocabulary) and the held-out validation split. The chosen size, 8{,}000 pieces, is marked.}
 \label{fig:vocab-coverage}
 \end{figure}
@@ -175,7 +175,7 @@ RoPE & $3.6141 \pm 0.0068$ \\
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/period_sweep.png}
+\includegraphics[width=0.95\textwidth]{figures/period_sweep.png}
 \caption{Test loss vs.\ period $P$ (log-$x$), with the no-periodic baseline and RoPE shown as reference bands (mean $\pm$ 1 std.). Every periodic configuration lies above the baseline; RoPE lies well below both.}
 \label{fig:period-sweep}
 \end{figure}
@@ -226,14 +226,14 @@ The comparisons above are all evaluated at a single point: the best-validation-l
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{figures/training_curves.png}
+\includegraphics[width=0.95\textwidth]{figures/training_curves.png}
 \caption{Validation loss vs.\ training step, all 10 configurations (mean of 3 paired seeds). Right: zoomed to the back half of training.}
 \label{fig:training-curves}
 \end{figure}
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{figures/training_curves_periodic_only.png}
+\includegraphics[width=0.95\textwidth]{figures/training_curves_periodic_only.png}
 \caption{Periodic configurations and baseline only, on their own $y$-scale. Right: zoomed to step $\geq 2{,}000$.}
 \label{fig:training-curves-periodic}
 \end{figure}
