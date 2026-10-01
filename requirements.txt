@@ -25,3 +25,10 @@ torch==2.2.2
 pyphen>=0.17
 nltk>=3.9
 matplotlib>=3.9
+
+# Used for formal significance testing (scripts/stats_sweep.py): paired
+# t-tests and Friedman test (scipy), repeated-measures ANOVA (statsmodels,
+# which in turn needs pandas for its long-format input).
+scipy>=1.15
+statsmodels>=0.14
+pandas>=2.0

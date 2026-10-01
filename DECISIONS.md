@@ -561,3 +561,74 @@ one new one from this run):
   explanation -- flag as an open question rather than a settled
   explanation, since it wasn't directly tested (no additive-injection
   control was run in this project).
+
+## 2026-10-01 -- Formal significance testing (scripts/stats_sweep.py)
+
+User asked for a formal significance test on two separate questions: (1)
+periodic-vs-baseline, per period, and (2) whether the period-to-period
+spread visible in the plot is real or "just an artefact of our chosen
+scale for the loss function." Implemented `scripts/stats_sweep.py` with
+tests in `tests/test_stats_sweep.py` (14 tests, synthetic data with known
+properties, all passing).
+
+**Method.** All 10 configs share identical seeds {0,1,2} by protocol
+design (same init, same data shuffle order), so every comparison is
+PAIRED (`scipy.stats.ttest_rel`), not independent-samples -- this removes
+seed-to-seed noise shared between the two arms being compared and gives
+much more power at n=3 than an unpaired test would. For the
+periodic-vs-baseline family (8 simultaneous comparisons), used
+Holm-Bonferroni correction on top of the raw p-values, plus Cohen's d_z
+(paired effect size) since a p-value alone is easy to misread at n=3. For
+the period-vs-period question, ran two omnibus tests across the 8
+periodic configs (period as within-subject factor, seed as subject):
+Friedman (non-parametric, `scipy.stats.friedmanchisquare`) and
+repeated-measures ANOVA (`statsmodels.stats.anova.AnovaRM`). Also a
+direct paired comparison of the best (P=3) vs. worst (P=128) periodic
+config.
+
+**On "is this an artefact of scale": no.** Statistical significance is
+the ratio of an effect to its measurement noise (standard error); it
+doesn't depend on how a plot's y-axis happens to be drawn or zoomed. The
+period-sweep plot's y-axis is compressed because it also has to
+accommodate RoPE's much larger effect on the same axes -- that's a
+plotting choice, not evidence about whether the period-to-period gaps
+are real. The omnibus tests answer the real question directly.
+
+**Results (metric: final_test_loss at best-val checkpoint):**
+
+1. Periodic vs. baseline, per period (paired t-test, Holm-Bonferroni
+   corrected across the 8 comparisons): NONE reach significance at
+   alpha=0.05 after correction. Smallest corrected p is P=45 at
+   p_holm=0.2656 (raw p=0.0332). This is despite large paired effect
+   sizes in every case (Cohen's d from 1.17 to 3.09, all in the
+   direction of periodic being worse than baseline) -- the effect is
+   consistent in direction and sign across all 8 periods, but n=3 seeds
+   with an 8-way correction simply doesn't have the power to call any
+   single comparison significant. Read this as "probably a real, small,
+   negative effect of periodic PE on this task, but not formally proven
+   at conventional significance with this sample size" -- not as "no
+   effect."
+
+2. Omnibus period-to-period effect (within the 8 periodic configs only,
+   excluding baseline/RoPE): Friedman chi-square=19.00, p=0.0082;
+   repeated-measures ANOVA F(7,14)=21.62, p<0.0001. Both strongly reject
+   the null that period choice has no systematic effect. **The
+   period-to-period spread visible in the plot is real, not a scale
+   artefact or noise** -- this directly answers the user's question.
+
+3. Best (P=3) vs. worst (P=128) periodic config: paired t=-7.94,
+   p=0.0155, Cohen's d=-4.58. Significant even after accounting for the
+   small sample -- the gap between the best and worst period choices
+   within the periodic family is a real, large effect, not noise.
+
+**Net picture:** period choice clearly matters once you've committed to
+periodic PE (finding 2 and 3), and periodic PE is consistently -- if not
+yet individually-significantly, given n=3 and multiple-comparison
+correction -- worse than baseline at every period tested (finding 1).
+The headline interpretation in the prior entry (periodic PE doesn't help
+and mildly hurts on this task) stands, now with the honest caveat that
+the baseline comparison's significance is bounded by sample size, while
+the shape of the period curve itself (the "is period 45-128 really worse
+than period 2-16" question) is on much firmer statistical ground.
+
+Full numeric results saved to `results/stats_sweep.json`.

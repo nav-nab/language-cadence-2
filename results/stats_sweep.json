@@ -1,0 +1,125 @@
+{
+  "metric": "final_test_loss",
+  "periodic_vs_baseline": [
+    {
+      "period": 2,
+      "n": 3,
+      "mean_periodic": 3.964052821650649,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.022968920794399494,
+      "t_stat": 2.439695371973929,
+      "p_value": 0.13484421304573255,
+      "cohens_d": 1.408558779749832,
+      "p_value_holm": 0.43445000634838743,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 3,
+      "n": 3,
+      "mean_periodic": 3.957267479463057,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.016183578606807636,
+      "t_stat": 2.0331296681115134,
+      "p_value": 0.17906877005998126,
+      "cohens_d": 1.1738279611815965,
+      "p_value_holm": 0.43445000634838743,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 6,
+      "n": 3,
+      "mean_periodic": 3.9611029335946744,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.02001903273842487,
+      "t_stat": 3.0004832875948244,
+      "p_value": 0.09543947755982247,
+      "cohens_d": 1.7323298337918454,
+      "p_value_holm": 0.43445000634838743,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 9,
+      "n": 3,
+      "mean_periodic": 3.962464375929399,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.02138047507314944,
+      "t_stat": 3.5770130052107922,
+      "p_value": 0.07004333593081428,
+      "cohens_d": 2.065189421453243,
+      "p_value_holm": 0.4202600155848857,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 16,
+      "n": 3,
+      "mean_periodic": 3.9647542852343935,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.02367038437814406,
+      "t_stat": 3.167256409595097,
+      "p_value": 0.08689000126967748,
+      "cohens_d": 1.8286163406722966,
+      "p_value_holm": 0.43445000634838743,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 45,
+      "n": 3,
+      "mean_periodic": 3.9814465840657554,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.04036268320950587,
+      "t_stat": 5.350132259065263,
+      "p_value": 0.033205521234978476,
+      "cohens_d": 3.08890029997143,
+      "p_value_holm": 0.2656441698798278,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 128,
+      "n": 3,
+      "mean_periodic": 3.995886206626892,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.0548023057706426,
+      "t_stat": 4.444284386106718,
+      "p_value": 0.04708184494374327,
+      "cohens_d": 2.565908786673964,
+      "p_value_holm": 0.32957291460620286,
+      "significant_at_0.05_holm": false
+    },
+    {
+      "period": 1024,
+      "n": 3,
+      "mean_periodic": 3.982465241894578,
+      "mean_baseline": 3.9410839008562495,
+      "mean_diff": 0.04138134103832858,
+      "t_stat": 3.127515400982408,
+      "p_value": 0.08882482203081439,
+      "cohens_d": 1.8056718586518936,
+      "p_value_holm": 0.43445000634838743,
+      "significant_at_0.05_holm": false
+    }
+  ],
+  "omnibus_period_effect": {
+    "n_seeds": 3,
+    "n_periods": 8,
+    "friedman_stat": 19.0,
+    "friedman_p": 0.008187340968061554,
+    "rm_anova": {
+      "F_stat": 21.619846288752218,
+      "df_num": 7.0,
+      "df_denom": 14.0,
+      "p_value": 1.7422278986562487e-06
+    },
+    "rm_anova_error": null
+  },
+  "best_vs_worst": {
+    "best_period": 3,
+    "worst_period": 128,
+    "n": 3,
+    "mean_best": 3.957267479463057,
+    "mean_worst": 3.995886206626892,
+    "mean_diff": 0.038618727163834965,
+    "t_stat": -7.935065485786031,
+    "p_value": 0.015513170485792933,
+    "cohens_d": -4.581312194255873
+  }
+}
