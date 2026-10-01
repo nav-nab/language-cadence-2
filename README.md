@@ -1,63 +1,69 @@
 # Language Cadence 2
 
-Small ML research project: does adding a periodic component to a standard
-positional encoding make a small GPT train more efficiently (lower test
-loss after a fixed number of training steps) on English text? Sequel to
-`language-cadence-1` (finished, kept separate) — English-only, syllable
-tokenizer instead of characters, question reframed around training
-efficiency rather than cross-language "cadence" comparison.
+**Does giving a transformer an explicit periodic "clock" help it learn language?**
+Short answer: no, but different periods produce statistically distinguishable
+results. Along the way we also built a custom syllable tokenizer that
+stands on its own.
 
-Full design history lives in the "Language Cadence" Claude Project chat.
-This repo is the execution: code, configs, metrics, results. Design is
-final; implementation choices made while executing are logged in
-[`DECISIONS.md`](DECISIONS.md), which is the authoritative record of what's
-settled vs. still open.
+📄 **[Read the full write-up →](writeup/paper.pdf)**
+
+## TL;DR
+
+We trained small GPTs (2.87M params) from scratch on English TED-talk
+transcripts, comparing a standard positional encoding against one with an
+added periodic component tuned to 8 different periods, plus a RoPE control.
+30 runs, 3 seeds each, zero divergence.
+
+- **Every single periodic configuration underperformed the plain baseline.**
+  Consistently, in the same direction, across all 8 periods.
+- Yet no individual period's disadvantage survives correction for multiple
+  comparisons — the effect is a group signal, not a property of any one
+  period (omnibus tests reject "no effect" decisively: ANOVA *p* < 10⁻⁵,
+  Friedman *p* = 0.0082).
+- RoPE beats both by roughly 10× the margin of any periodic-vs-baseline gap
+  — a sanity check that the setup can detect a real effect when one exists.
+- The most plausible explanation: a rigid, exact-period assumption fighting
+  soft, irregular data. Real clause and sentence lengths don't repeat on a
+  fixed schedule, so the periodic signal doesn't just add noise — it gives
+  the model a specific, confident, *wrong* answer to "where am I in the
+  cycle," which the model then has to spend effort unlearning.
+
+## A tokenizer that turned out to matter too
+
+Getting periods to mean anything linguistically required ditching
+byte-pair tokenization for real syllables. The hybrid tokenizer built for
+this project — CMUdict counts, a spelling-rule cut-point algorithm scored
+against two independent syllabifiers, and a voted fallback for unseen
+words — hits **98.4%** syllable-count accuracy on out-of-vocabulary words
+(vs. 79.3% for the best single off-the-shelf tool it was checked against)
+and rejoins every input word exactly. It's a standalone component
+(`syllable_tokenizer/`) and we think it's useful beyond this project to
+anyone who needs a well-behaved, linguistically grounded syllable-level
+unit for English text.
+
+## Repo layout
+
+| Path | What's there |
+|---|---|
+| [`writeup/paper.pdf`](writeup/paper.pdf) | The full paper — methodology, stats, discussion, limitations |
+| `syllable_tokenizer/` | The hybrid syllable tokenizer (library code + tests) |
+| `src/` | Model and positional-encoding implementation |
+| `scripts/` | Data pipeline, tokenizer evaluation, sweep orchestration |
+| `results/` | Metrics, coverage curves, corpus stats, sweep outputs |
+| `configs/` | Frozen vocabulary and run configs |
+| [`DECISIONS.md`](DECISIONS.md) | Running log of every implementation decision made while executing |
 
 ## Data
 
-Corpus: WIT3 / IWSLT TED talks, English source side, 2016 release (Hugging
-Face repo `IWSLT/ted_talks_iwslt`, `data/XML_releases.tgz`, 1.67GB). CC
-BY-NC-ND; please cite Cettolo et al. (EAMT 2012) and credit TED if you
-reuse this. The raw archive, extracted XML, and processed/tokenized corpus
-are **not** committed. Rebuild pipeline:
+English source side of WIT3/IWSLT TED talks (2016 release) — 2,085 talks,
+~4.3M words, split by speaker with zero overlap across train/val/test.
+CC BY-NC-ND; please cite Cettolo et al. (EAMT 2012) and credit TED if you
+reuse it. The raw archive and processed corpus aren't committed — see
+[`DECISIONS.md`](DECISIONS.md) for the rebuild pipeline.
 
-```
-python3 scripts/parse_wit3.py data/extracted/ted_en-20160408.xml data/processed/talks.jsonl
-python3 scripts/preprocess_wit3.py data/processed/talks.jsonl data/processed
-```
+## Context
 
-(the raw archive and extracted XML must be downloaded/unzipped from the
-Hugging Face path above first). `preprocess_wit3.py` strips audience/audio
-cues like `(Laughter)`/`(Applause)`, drops talks under 100 words, and
-splits by speaker into `data/processed/{train,val,test}.jsonl` at roughly
-90/5/5 by word count with zero speaker overlap across splits. Corpus
-inspection and preprocessing reports: `results/wit3_corpus_stats.json`,
-`results/wit3_preprocess_report.json`.
-
-## Tokenizer
-
-True syllables, not BPE: CMUdict gives each word's syllable count, spelling
-rules (scored against pyphen and NLTK's SSP syllable splitter) place the
-cut points. Library code lives in `syllable_tokenizer/` (`syllabify.py`,
-`vocab.py`); see `DECISIONS.md` for the rebuild note. Run `pytest tests/`
-before trusting it, and `python3 scripts/eval_hybrid.py` to regenerate
-`results/eval_hybrid_report.json` (reference stats on Brown).
-
-The deployed vocabulary (`configs/vocab.json`, 8000 pieces) is rebuilt from
-real WIT3 coverage, not the provisional Brown-based one:
-`scripts/tokenize_corpus_chunk.py` + `scripts/finalize_vocab.py` (chunked
-because tokenizing the ~3.9M-word train split in one shot risks the local
-shell's time limit). Coverage curve and the frozen choice are in
-`results/vocab_coverage.json`.
-
-## Compute
-
-`scripts/benchmark_throughput.py` measures laptop throughput for the
-likely sweep architecture. Result and 48h-budget feasibility check are in
-`DECISIONS.md`.
-
-## Status
-
-Stages 1-3 (setup, data, vocabulary) are done and frozen. Stage 4 (model +
-positional encoding) is next. See `DECISIONS.md` for the full running log,
-every frozen decision, and what's still open.
+Sequel to `language-cadence-1` (a prior null result on a character-level
+tokenizer, which this project traces to a specific boundary effect and
+fixes). Design history lives in the associated Claude Project chat; this
+repo is the execution — code, configs, metrics, and the final write-up.
