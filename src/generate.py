@@ -54,7 +54,13 @@ class IncrementalDecoder:
         return out
 
 
-def load_model(checkpoint_path: str, device: torch.device) -> tuple[GPT, Vocab, dict]:
+def load_model(checkpoint_path: str, device: torch.device) -> tuple[GPT, Vocab, dict, dict]:
+    """Returns (model, vocab, cfg, info). `cfg` is the training-time config
+    stored on the checkpoint (pe_mode, architecture, etc. -- see
+    scripts/train.py's save_checkpoint calls); `info` is whatever
+    checkpoint-specific metadata is present (val_loss, step), used only for
+    display -- not all checkpoints saved it (checkpoint.pt, as opposed to
+    checkpoint_best.pt, doesn't)."""
     ckpt = torch.load(checkpoint_path, map_location=device)
     cfg = ckpt["config"]
     vocab = Vocab.load(cfg["vocab_path"])
@@ -69,7 +75,8 @@ def load_model(checkpoint_path: str, device: torch.device) -> tuple[GPT, Vocab, 
     ).to(device)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
-    return model, vocab, cfg
+    info = {"val_loss": ckpt.get("val_loss"), "step": ckpt.get("step")}
+    return model, vocab, cfg, info
 
 
 @torch.no_grad()

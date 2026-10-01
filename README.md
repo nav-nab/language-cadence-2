@@ -41,14 +41,28 @@ and rejoins every input word exactly. It's a standalone component
 anyone who needs a well-behaved, linguistically grounded syllable-level
 unit for English text.
 
+## Try the trained model yourself
+
+`scripts/generate_gui.py` is a small desktop app that loads the best RoPE
+checkpoint from the sweep and generates text indefinitely from an optional
+start string, streaming it into a window until you hit Stop:
+
+```
+python3 scripts/generate_gui.py
+```
+
+Just a toy for poking at the model, not a research artifact — trained
+checkpoints aren't committed to the repo (see `.gitignore`), so this only
+works after you've run the sweep yourself (`scripts/run_sweep.py`).
+
 ## Repo layout
 
 | Path | What's there |
 |---|---|
 | [`writeup/paper.pdf`](writeup/paper.pdf) | The full paper — methodology, stats, discussion, limitations |
 | `syllable_tokenizer/` | The hybrid syllable tokenizer (library code + tests) |
-| `src/` | Model and positional-encoding implementation |
-| `scripts/` | Data pipeline, tokenizer evaluation, sweep orchestration |
+| `src/` | Model, positional-encoding, and generation (sampling/decoding) implementation |
+| `scripts/` | Data pipeline, tokenizer evaluation, sweep orchestration, and the generator GUI |
 | `results/` | Metrics, coverage curves, corpus stats, sweep outputs |
 | `configs/` | Frozen vocabulary and run configs |
 | [`DECISIONS.md`](DECISIONS.md) | Running log of every implementation decision made while executing |

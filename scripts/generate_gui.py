@@ -40,14 +40,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from generate import load_model, sample_next, IncrementalDecoder  # noqa: E402
-from model import GPT  # noqa: E402
+from model import GPT, count_params  # noqa: E402
 from syllable_tokenizer.vocab import Vocab, EOS  # noqa: E402
 
 DEFAULT_CHECKPOINT = os.path.join("runs", "rope_seed1", "checkpoint_best.pt")
 
 
 class GeneratorApp:
-    def __init__(self, root: tk.Tk, model: GPT, vocab: Vocab, device: torch.device, run_id: str):
+    def __init__(self, root: tk.Tk, model: GPT, vocab: Vocab, cfg: dict, info: dict,
+                 device: torch.device, run_id: str):
         self.root = root
         self.model = model
         self.vocab = vocab
@@ -58,7 +59,23 @@ class GeneratorApp:
         self.text_queue: "queue.Queue[str]" = queue.Queue()
 
         root.title(f"Language Cadence 2 -- generator ({run_id}, RoPE, best test-loss seed)")
-        root.geometry("780x580")
+        root.geometry("780x610")
+
+        about = ttk.Frame(root, padding=(10, 10, 10, 0))
+        about.pack(fill="x")
+        pe_desc = {"rope": "rotary positional encoding (RoPE)",
+                   "baseline": "a standard sinusoidal positional encoding, no periodic component",
+                   "periodic": f"a periodic positional encoding (period={cfg.get('period')})"}[cfg["pe_mode"]]
+        loss_bit = f", val loss {info['val_loss']:.4f}" if info.get("val_loss") is not None else ""
+        about_text = (
+            f"A {count_params(model) / 1e6:.2f}M-parameter GPT trained from scratch on English "
+            f"TED-talk transcripts, syllable-tokenized with this project's own hybrid tokenizer, "
+            f"using {pe_desc} -- the strongest configuration in our positional-encoding sweep. "
+            f"Checkpoint: {run_id}{loss_bit}. See writeup/paper.pdf for the full write-up; this "
+            f"generator is just a toy for poking at the trained model, not a research result."
+        )
+        ttk.Label(about, text=about_text, wraplength=740, justify="left",
+                  foreground="#555555", font=("Helvetica", 10)).pack(fill="x")
 
         top = ttk.Frame(root, padding=10)
         top.pack(fill="x")
@@ -212,11 +229,11 @@ def main():
             f"wherever your runs/ directory actually lives."
         )
 
-    model, vocab, cfg = load_model(args.checkpoint, device)
+    model, vocab, cfg, info = load_model(args.checkpoint, device)
     run_id = os.path.basename(os.path.dirname(os.path.abspath(args.checkpoint)))
 
     root = tk.Tk()
-    GeneratorApp(root, model, vocab, device, run_id)
+    GeneratorApp(root, model, vocab, cfg, info, device, run_id)
     root.mainloop()
 
 

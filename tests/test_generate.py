@@ -154,11 +154,13 @@ def test_load_model_round_trips_a_checkpoint(tmp_path, vocab):
     )
 
     device = torch.device("cpu")
-    loaded_model, loaded_vocab, cfg = load_model(str(ckpt_path), device)
+    loaded_model, loaded_vocab, cfg, info = load_model(str(ckpt_path), device)
 
     assert cfg["pe_mode"] == "rope"
     assert len(loaded_vocab) == len(vocab)
     assert not loaded_model.training  # eval() was called
+    assert info["val_loss"] == 1.23
+    assert info["step"] == 100
 
     context = vocab.encode("The quick brown fox")
     x = torch.tensor([context])

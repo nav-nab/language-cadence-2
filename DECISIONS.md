@@ -799,3 +799,44 @@ divergences/warnings already logged for the whole sweep. Two runs
 metrics.jsonl from a mid-run interruption/resume (expected, given the
 project's resumable-checkpointing design) -- the plotting script dedupes
 by step, keeping the latest-written record, with a test covering this.
+
+## 2026-10-01 — Inference GUI (not part of the research pipeline)
+
+Added `scripts/generate_gui.py`, a tkinter desktop app for open-ended text
+generation from a trained checkpoint -- a just-for-fun addition after the
+write-up was finished, not a research deliverable. Loading/sampling/decoding
+logic lives in `src/generate.py` (unit-tested, `tests/test_generate.py`)
+rather than in the GUI file itself, so it has no tkinter/display dependency
+and can be tested headlessly.
+
+Defaults to `runs/rope_seed1/checkpoint_best.pt`: of the three RoPE seeds,
+`rope_seed1` has the lowest final test loss (3.6092 vs. 3.6093 for seed0 and
+3.6219 for seed2, per each run's `final_result.json`), and RoPE is the
+strongest positional encoding in the sweep by a wide margin (Section 4.1).
+
+Generation samples one token at a time (temperature + top-k, no KV cache --
+the model is tiny enough that a full forward pass per step is fine for an
+interactive toy) and decodes incrementally: `IncrementalDecoder` mirrors
+`Vocab.decode()`'s piece-to-word logic but a token at a time, so the GUI can
+stream words as they're generated instead of re-decoding the whole sequence
+from scratch after every token. Verified byte-identical to `Vocab.decode()`
+on both clean text and actual sampled output (which can include char-fallback
+pieces and special tokens) in `tests/test_generate.py`.
+
+For an empty start string, generation seeds the context with a single
+`<eos>` token rather than nothing -- `<eos>` is what separated talks during
+training (see `scripts/encode_corpus_chunk.py`), so conditioning on it
+approximates the model's learned document-initial distribution, which an
+empty context has no principled analogue for.
+
+Once the context passes `model.seq_len` (1024) tokens, it's truncated to the
+most recent 1024 before each forward pass (`sample_next` already only reads
+the last `seq_len` tokens regardless; the in-memory list is trimmed too, so
+a long-running session doesn't grow it unboundedly) -- this is what makes
+generation run indefinitely rather than being capped at the training context
+length, at the cost of losing anything before the truncation point.
+
+Buttons use plain `tk.Button` with hardcoded colors rather than `ttk.Button`:
+`ttk.Button` ignores explicit fg/bg under some themes (macOS's "aqua" theme,
+especially in dark mode, was observed rendering white-on-white), which
+`tk.Button` doesn't.
