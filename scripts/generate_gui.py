@@ -81,11 +81,24 @@ class GeneratorApp:
 
         btns = ttk.Frame(root, padding=(10, 0, 10, 10))
         btns.pack(fill="x")
-        self.start_btn = ttk.Button(btns, text="Start", command=self.on_start)
+        # Plain tk.Button (not ttk.Button) here on purpose: on some
+        # platforms/themes (notably macOS's "aqua" ttk theme, especially in
+        # dark mode) ttk.Button ignores explicit foreground/background
+        # colors and can render white text on a white background. A plain
+        # tk.Button always honors the colors below, regardless of system
+        # theme.
+        button_kwargs = dict(
+            fg="#111111", bg="#e6e6e6",
+            activeforeground="#111111", activebackground="#d5d5d5",
+            disabledforeground="#888888",
+            highlightbackground="#e6e6e6",
+            relief="raised", borderwidth=1, padx=10, pady=3,
+        )
+        self.start_btn = tk.Button(btns, text="Start", command=self.on_start, **button_kwargs)
         self.start_btn.pack(side="left")
-        self.stop_btn = ttk.Button(btns, text="Stop", command=self.on_stop, state="disabled")
+        self.stop_btn = tk.Button(btns, text="Stop", command=self.on_stop, state="disabled", **button_kwargs)
         self.stop_btn.pack(side="left", padx=(6, 0))
-        self.clear_btn = ttk.Button(btns, text="Clear", command=self.on_clear)
+        self.clear_btn = tk.Button(btns, text="Clear", command=self.on_clear, **button_kwargs)
         self.clear_btn.pack(side="left", padx=(6, 0))
         self.status_var = tk.StringVar(value="Idle.")
         ttk.Label(btns, textvariable=self.status_var).pack(side="left", padx=(16, 0))
