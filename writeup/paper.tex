@@ -287,6 +287,8 @@ We emphasize again, per Section~\ref{sec:stats}, that the specific shape this su
 
 \citet{stojanovic2013rhythm} computes structural-complexity measures from written-text transcriptions across 21 languages, and finds that several proposed ``rhythm'' metrics correlate strongly with phonotactic complexity. This is direct supporting evidence for treating syllable structure, rather than raw character or timing counts, as the more principled unit for this family of hypotheses -- precisely the design choice this paper makes (Section~\ref{sec:tokenizer}).
 
+A broader literature search turned up concurrent work on syllable-aware tokenization specifically, independent of this paper's positional-encoding question. \citet{atuhurra2024syllable} introduce a syllable tokenizer for Swahili, and show that training GPT-2 from scratch on syllable-tokenized text produces more linguistically coherent embeddings than standard subword baselines; this echoes our own motivation that syllable-level units are a better fit than characters or BPE pieces for languages with transparent syllable structure. \citet{liao2026tokenization} make the general case more directly, showing that standard subword tokenization systematically misaligns with syllable and rhyme boundaries across languages, and proposing a metric for that misalignment together with a lightweight fine-tuning method that retrofits phonological awareness onto an already-tokenized model. Our hybrid tokenizer takes the opposite approach: rather than retrofitting alignment after the fact, it builds the alignment in from the start, at the cost of being English-specific rather than a general-purpose fix. \citet{nguyen2026syllables} go a step further still, factorizing each syllable into its phonological onset, rime, and tone components and achieving extremely compact vocabularies (112 entries for Chinese, 256 for Vietnamese) while matching or exceeding character- and subword-level baselines; this is a finer-grained decomposition than the whole-syllable pieces used here, and a natural direction for extending this tokenizer in future work (Section~\ref{sec:conclusion}). None of these three papers touches positional encoding, so none bears directly on this paper's headline experiment. Together, though, they suggest syllable-aware tokenization is an active and growing area, with the hybrid approach of Section~\ref{sec:tokenizer} -- anchoring counts to dictionary ground truth and falling back to heuristics only for out-of-vocabulary words -- occupying a middle point between purely heuristic syllabifiers and fully learned phonological factorizations.
+
 \citet{su2021roformer} introduce rotary position embedding, used here purely as a positive control (Section~\ref{sec:pe-method}); its substantial empirical advantage over additive and concatenative positional encodings is well established and is not itself tested by this paper.
 
 \section{Conclusion and Future Work}
@@ -312,6 +314,11 @@ Beyond the initial project design, this project's tokenizer, code, analysis, and
 
 \begin{thebibliography}{99}
 
+\bibitem[Atuhurra et al.(2024)]{atuhurra2024syllable}
+Atuhurra, J., Shindo, H., Kamigaito, H., and Watanabe, T. (2024).
+\newblock Introducing syllable tokenization for low-resource languages: A case study with Swahili.
+\newblock \emph{arXiv preprint arXiv:2406.15358}.
+
 \bibitem[Cettolo et al.(2012)]{cettolo2012wit3}
 Cettolo, M., Girardi, C., and Federico, M. (2012).
 \newblock WIT\textsuperscript{3}: Web Inventory of Transcribed and Translated Talks.
@@ -332,10 +339,20 @@ Holm, S. (1979).
 \newblock A simple sequentially rejective multiple test procedure.
 \newblock \emph{Scandinavian Journal of Statistics}, 6(2):65--70.
 
+\bibitem[Liao and Shi(2026)]{liao2026tokenization}
+Liao, D. and Shi, F. (2026).
+\newblock How tokenization limits phonological knowledge representation in language models and how to improve them.
+\newblock In \emph{Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (ACL)}.
+
 \bibitem[Nabijou(2026)]{nabijou2026}
 Nabijou, N. (2026).
 \newblock Language Cadence: A Null Result.
 \newblock Unpublished manuscript.
+
+\bibitem[Nguyen et al.(2026)]{nguyen2026syllables}
+Nguyen, N.~H., Huynh, T.~B., Dinh-Le, B.-A., Hoang, P.~G., Nguyen, D.~T., Nguyen, K.~V., and Nguyen, N.~L.-T. (2026).
+\newblock Beyond atomic tokens: Factorizing syllables for language model pretraining.
+\newblock \emph{arXiv preprint arXiv:2609.21362}.
 
 \bibitem[Silva(2013)]{pyphen}
 Silva, L. and contributors (2013--).
