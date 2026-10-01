@@ -749,3 +749,53 @@ hasn't been isolated with a direct ablation (e.g. a with-base-PE vs.
 without-base-PE comparison at matched P) -- worth flagging as the leading
 explanation, grounded in the actual architectural difference, rather than
 the incorrect injection-method story from the prior entry.
+
+## 2026-10-01 -- Training-curve analysis: the periodic-vs-baseline gap is U-shaped over training, not constant
+
+New script `scripts/plot_training_curves.py` (4 passing tests) plots
+val_loss_subset (the periodic in-training eval, every 100 steps) against
+training step for all 10 configs, mean +/- std across the 3 paired seeds,
+to check whether the end-of-training comparison already analyzed
+(analyze_sweep.py / stats_sweep.py) looks the same throughout training or
+hides time-varying structure. Two plots saved: results/training_curves.png
+(all 10 configs together) and results/training_curves_periodic_only.png
+(periodic configs + baseline only, on their own y-scale, since RoPE's much
+larger gap otherwise compresses the interesting part of the axis).
+
+**Finding: the periodic-vs-baseline gap is NOT constant across training --
+it is U-shaped.** Measuring mean(periodic) - baseline directly at each
+eval step: the gap starts large at step 100 (0.055, dominated by early
+init/optimization noise), shrinks steadily through the first ~1500 steps
+(2-3 epochs) down to a minimum of 0.0064 at step 1500 -- essentially
+indistinguishable from baseline at that point -- then REOPENS and grows
+for the rest of training, reaching 0.0295 by step 2900 (roughly back to
+where the final-checkpoint gap analysis already found it). The
+across-period spread (max-min of the 8 periodic configs' means) shows the
+identical U-shape: 0.047 at step 100, down to 0.0078 at step 1500, back up
+to 0.0371 by step 2900.
+
+This means the headline periodic-vs-baseline disadvantage is specifically
+a LATE-TRAINING phenomenon (roughly the last 2-3 of the ~7-8 epochs), not
+a from-the-start optimization-speed difference -- the models are nearly
+indistinguishable from baseline in the middle of training and only pull
+apart again later. This is a more specific, testable story than the three
+speculative mechanisms already on record (integration cost / rigid-prior
+mismatch / weak injection channel): it's suggestive of something closer to
+a mild LATE-EPOCH divergence or overfitting-adjacent effect specific to
+carrying the extra periodic feature, rather than a flat training-speed
+penalty present throughout. Worth flagging explicitly as a new, concrete
+observation for the discussion/future-work section, and as a reason to
+look at train-vs-val gap per config (not just val loss) in any follow-up.
+
+For contrast (not a headline claim, context only): RoPE's advantage over
+baseline opens earlier (visible by step ~700) and grows roughly
+monotonically until plateauing around step ~2200-2500 (0.35), a
+qualitatively different (not U-shaped) pattern from the periodic case.
+
+No training-stability anomalies observed in either plot: all curves are
+smooth and monotonically decreasing, consistent with the 0
+divergences/warnings already logged for the whole sweep. Two runs
+(periodic_P2_seed2, periodic_P9_seed0) had duplicate early-step entries in
+metrics.jsonl from a mid-run interruption/resume (expected, given the
+project's resumable-checkpointing design) -- the plotting script dedupes
+by step, keeping the latest-written record, with a test covering this.
