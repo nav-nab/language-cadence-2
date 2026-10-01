@@ -155,18 +155,74 @@ def omnibus_period_effect(groups: dict, periods: list[int]) -> dict:
     }
 
 
-def best_vs_worst(groups: dict, periods: list[int]) -> dict:
+def all_pairwise_period_comparisons(groups: dict, periods: list[int]) -> list[dict]:
+    """Paired t-test for every one of the C(n,2) period-vs-period pairs,
+    Holm-Bonferroni corrected across the whole family. This is the family
+    a "best vs. worst" comparison is implicitly drawn from once the pair is
+    selected by looking at the data (picking the single lowest- and
+    highest-mean periods out of 8 is exactly the "testing the winner"
+    problem: Fisher's-LSD-style single-pair t-tests are only valid when the
+    pair was chosen before seeing the data; for >3 groups you need a
+    correction that accounts for the full comparison space the extreme
+    pair could have come from -- see Tukey's HSD / the studentized range
+    literature for the uncorrected-pairs version of this mistake)."""
+    import itertools
+    rows = []
+    pvals = []
+    for p1, p2 in itertools.combinations(periods, 2):
+        a, b, seeds = aligned_arrays(groups, ("periodic", p1), ("periodic", p2))
+        t, pval = sstats.ttest_rel(a, b)
+        d = cohens_d_paired(a, b)
+        rows.append({
+            "period_a": p1, "period_b": p2, "n": len(seeds),
+            "mean_a": float(a.mean()), "mean_b": float(b.mean()),
+            "mean_diff": float(a.mean() - b.mean()),
+            "t_stat": float(t), "p_value": float(pval), "cohens_d": d,
+        })
+        pvals.append(pval)
+    adjusted = holm_bonferroni(pvals)
+    for row, adj in zip(rows, adjusted):
+        row["p_value_holm"] = float(adj)
+        row["significant_at_0.05_holm"] = bool(adj < 0.05)
+    return rows
+
+
+def best_vs_worst(groups: dict, periods: list[int], pairwise_family: list[dict] | None = None) -> dict:
+    """Identify the lowest- and highest-mean periodic configs and report
+    their comparison's Holm-corrected p-value FROM WITHIN the full
+    all-pairs family (pairwise_family), not an uncorrected single test --
+    since best/worst were selected by looking at the data, an uncorrected
+    test here would be the "testing the winner" bias. If pairwise_family
+    is not given, it is computed here (at the cost of running all C(n,2)
+    tests)."""
     means = {p: np.mean(list(groups[("periodic", p)].values())) for p in periods}
     best_p = min(means, key=means.get)
     worst_p = max(means, key=means.get)
     a, b, seeds = aligned_arrays(groups, ("periodic", best_p), ("periodic", worst_p))
     t, pval = sstats.ttest_rel(a, b)
     d = cohens_d_paired(a, b)
+
+    if pairwise_family is None:
+        pairwise_family = all_pairwise_period_comparisons(groups, periods)
+    p_holm = None
+    for row in pairwise_family:
+        pair = {row["period_a"], row["period_b"]}
+        if pair == {best_p, worst_p}:
+            p_holm = row["p_value_holm"]
+            break
+
     return {
         "best_period": best_p, "worst_period": worst_p, "n": len(seeds),
         "mean_best": float(a.mean()), "mean_worst": float(b.mean()),
         "mean_diff": float(b.mean() - a.mean()), "t_stat": float(t),
-        "p_value": float(pval), "cohens_d": d,
+        "p_value_uncorrected": float(pval),
+        "p_value_holm_within_all_pairs": p_holm,
+        "significant_at_0.05_holm": bool(p_holm < 0.05) if p_holm is not None else None,
+        "cohens_d": d,
+        "note": ("best/worst were selected by looking at the data (min/max of 8 means), so "
+                 "p_value_uncorrected alone is invalid for this comparison (the 'testing the "
+                 "winner' problem) -- p_value_holm_within_all_pairs is the correct number to "
+                 "read, Holm-corrected across all C(8,2)=28 period-vs-period pairs."),
     }
 
 
@@ -201,7 +257,15 @@ def print_report(pvb_rows: list[dict], omnibus: dict, bw: dict) -> None:
     print("=" * 78)
     print(f"mean P={bw['best_period']}: {bw['mean_best']:.4f}   mean P={bw['worst_period']}: {bw['mean_worst']:.4f}   "
           f"diff: {bw['mean_diff']:+.4f}")
-    print(f"paired t = {bw['t_stat']:.2f}, p = {bw['p_value']:.4f}, Cohen's d = {bw['cohens_d']:.2f}")
+    print(f"paired t = {bw['t_stat']:.2f}, uncorrected p = {bw['p_value_uncorrected']:.4f}, "
+          f"Cohen's d = {bw['cohens_d']:.2f}")
+    sig = "yes" if bw["significant_at_0.05_holm"] else "no"
+    p_holm_str = f"{bw['p_value_holm_within_all_pairs']:.4f}" if bw['p_value_holm_within_all_pairs'] is not None else "n/a"
+    print(f"Holm-corrected p (within all 28 period-vs-period pairs) = {p_holm_str}  "
+          f"significant at 0.05? {sig}")
+    print("Note: best/worst were picked by looking at the data, so the uncorrected p above is NOT")
+    print("a valid significance test on its own ('testing the winner' bias) -- the Holm-corrected")
+    print("value, drawn from the full 28-pair family, is the one to trust.")
 
 
 def main():
@@ -225,7 +289,8 @@ def main():
 
     pvb_rows = periodic_vs_baseline(groups, periods)
     omnibus = omnibus_period_effect(groups, periods)
-    bw = best_vs_worst(groups, periods)
+    pairwise_rows = all_pairwise_period_comparisons(groups, periods)
+    bw = best_vs_worst(groups, periods, pairwise_family=pairwise_rows)
 
     print_report(pvb_rows, omnibus, bw)
 
@@ -236,6 +301,7 @@ def main():
             "metric": args.metric,
             "periodic_vs_baseline": pvb_rows,
             "omnibus_period_effect": omnibus,
+            "all_pairwise_period_comparisons": pairwise_rows,
             "best_vs_worst": bw,
         }, f, indent=2)
     print(f"\nSaved full results to {out_path}")

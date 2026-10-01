@@ -632,3 +632,68 @@ the shape of the period curve itself (the "is period 45-128 really worse
 than period 2-16" question) is on much firmer statistical ground.
 
 Full numeric results saved to `results/stats_sweep.json`.
+
+## 2026-10-01 -- Correction: best-vs-worst comparison was uncorrected (selection bias)
+
+User asked me to double-check the significance-test entry above because
+finding #3 (best P=3 vs. worst P=128, reported as significant at p=0.0155)
+looked inconsistent with finding #1 (no individual period beats baseline
+even at the LEAST conservative case, P=45 raw p=0.0332, after Holm
+correction). It was inconsistent, and the inconsistency pointed at a real
+bug in the method, not just presentation.
+
+**The bug:** P=3 and P=128 were selected as "best" and "worst" by looking
+at the data -- picking the single lowest- and highest-mean periods out of
+8. Running an uncorrected paired t-test on a pair chosen that way is the
+"testing the winner" problem: Fisher's-LSD-style single-pair tests are
+only valid when the pair is chosen *before* seeing the data; for more
+than 3 groups you need a correction that accounts for the full comparison
+space the extreme pair could have been drawn from (this is exactly why
+Tukey's HSD / the studentized range distribution exist, rather than just
+running a plain t-test on whichever two group means look most different).
+I had correctly Holm-corrected the periodic-vs-baseline family (8 tests)
+but then ran the best-vs-worst test uncorrected -- an inconsistent
+application of the same principle within one report.
+
+**Fix (`scripts/stats_sweep.py`):** added `all_pairwise_period_comparisons`,
+which runs all C(8,2)=28 period-vs-period paired t-tests and Holm-corrects
+across that full family. `best_vs_worst` now reports its p-value by
+looking up the best/worst pair's result *within* that corrected family
+(`p_value_holm_within_all_pairs`), rather than running its own uncorrected
+test. The uncorrected value is still reported alongside, explicitly
+labeled as not a valid standalone significance test. Added tests verifying
+the Holm correction is applied across all 28 pairs and that
+`best_vs_worst`'s corrected value matches the corresponding row in the
+full pairwise table.
+
+**Corrected result:** best (P=3) vs. worst (P=128): uncorrected p=0.0155,
+but Holm-corrected (within the 28-pair family) p=0.3413 -- NOT
+significant. This supersedes the "significant, d=-4.58" claim in the
+prior entry.
+
+**Corrected net picture.** All three results are now mutually consistent:
+
+1. No individual period differs significantly from baseline after
+   correction (prior entry, unchanged).
+2. The omnibus test across all 8 periods (Friedman p=0.0082, RM-ANOVA
+   p<0.0001) still finds real, systematic period-to-period structure --
+   this part of the prior entry's answer to "is it a scale artefact"
+   stands: no, it isn't.
+3. But once any SPECIFIC pairwise comparison is corrected for having been
+   selected from the data (including literally the most extreme pair,
+   best vs. worst), none reaches significance at n=3 -- not even the
+   single largest gap in the whole sweep.
+
+This is not actually contradictory, and it's a well-documented pattern:
+an omnibus test pools all the data at once and can detect that *some*
+real structure exists with more power than any individual corrected
+pairwise comparison can resolve at small n. The honest summary is:
+period choice provably matters in aggregate (2), but at n=3 seeds we
+cannot say with statistical confidence *which specific periods* differ
+from which, including the apparently largest gap in the data (1, 3).
+Don't over-read the shape of the curve in the plot pointwise -- treat it
+as suggestive, not as individually confirmed differences, until a larger
+seed count is run.
+
+Full corrected numbers (including the 28-pair table) saved to
+`results/stats_sweep.json`.

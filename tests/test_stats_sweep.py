@@ -180,6 +180,48 @@ def test_best_vs_worst_identifies_correct_periods_and_sign():
     assert bw["best_period"] == 2
     assert bw["worst_period"] == 128
     assert bw["mean_diff"] > 0  # worst - best should be positive
+    # new fields from the selection-bias fix: no bare "p_value" anymore,
+    # and the Holm-corrected value (drawn from the all-pairs family) must
+    # be present and at least as large as the uncorrected one.
+    assert "p_value" not in bw
+    assert bw["p_value_uncorrected"] is not None
+    assert bw["p_value_holm_within_all_pairs"] is not None
+    assert bw["p_value_holm_within_all_pairs"] >= bw["p_value_uncorrected"] - 1e-12
+
+
+def test_all_pairwise_period_comparisons_covers_every_pair_and_corrects():
+    periods = [2, 3, 5]
+    results = []
+    rng = np.random.default_rng(7)
+    for seed in range(3):
+        for i, period in enumerate(periods):
+            results.append(make_result("periodic", period, seed, 3.0 + 0.1 * i + rng.normal(0, 0.01)))
+    groups = ss.paired_by_seed(results)
+    rows = ss.all_pairwise_period_comparisons(groups, periods)
+    # C(3,2) = 3 pairs
+    assert len(rows) == 3
+    pairs_seen = {frozenset((r["period_a"], r["period_b"])) for r in rows}
+    assert pairs_seen == {frozenset((2, 3)), frozenset((2, 5)), frozenset((3, 5))}
+    for r in rows:
+        assert r["p_value_holm"] >= r["p_value"] - 1e-12
+
+
+def test_best_vs_worst_holm_p_matches_the_corresponding_pairwise_row():
+    results = []
+    rng = np.random.default_rng(8)
+    period_means = {2: 3.0, 9: 3.3, 128: 4.0}
+    for seed in range(3):
+        for period, mean in period_means.items():
+            results.append(make_result("periodic", period, seed, mean + rng.normal(0, 0.01)))
+    groups = ss.paired_by_seed(results)
+    periods = sorted(period_means)
+    pairwise_rows = ss.all_pairwise_period_comparisons(groups, periods)
+    bw = ss.best_vs_worst(groups, periods, pairwise_family=pairwise_rows)
+
+    matching = [r for r in pairwise_rows
+                if {r["period_a"], r["period_b"]} == {bw["best_period"], bw["worst_period"]}]
+    assert len(matching) == 1
+    assert bw["p_value_holm_within_all_pairs"] == pytest.approx(matching[0]["p_value_holm"])
 
 
 def test_load_results_reads_final_result_json_files(tmp_path):
@@ -228,3 +270,5 @@ def test_main_runs_end_to_end_on_synthetic_sweep(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "Periodic vs. baseline" in captured.out
     assert "Omnibus test" in captured.out
+    assert len(saved["all_pairwise_period_comparisons"]) == 28  # C(8,2)
+    assert "p_value_holm_within_all_pairs" in saved["best_vs_worst"]
