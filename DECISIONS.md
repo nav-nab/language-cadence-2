@@ -486,3 +486,78 @@ test_resume_unaffected_by_changing_eta_args in test_train_protocol.py;
 measure/average_completed_run_seconds tests in test_run_sweep.py).
 
 Full suite: 69/69 passing.
+
+## 2026-10-01 — Sweep complete: results and headline interpretation
+
+All 30 runs completed cleanly on Navid's machine (no divergence, no loss
+spikes, every run reached its full 3000-step budget). Analyzed with
+`scripts/analyze_sweep.py`; full table in `results/sweep_summary.json`,
+plot in `results/period_sweep.png`.
+
+| config | mean val loss (best ckpt) | mean test loss | std (test, across 3 seeds) |
+|---|---|---|---|
+| baseline (no periodic component) | 3.9731 | 3.9411 | 0.0165 |
+| periodic P=2 | 3.9959 | 3.9641 | 0.0042 |
+| periodic P=3 | 3.9899 | 3.9573 | 0.0029 |
+| periodic P=6 | 3.9938 | 3.9611 | 0.0049 |
+| periodic P=9 | 3.9951 | 3.9625 | 0.0065 |
+| periodic P=16 | 3.9962 | 3.9648 | 0.0044 |
+| periodic P=45 | 4.0139 | 3.9814 | 0.0042 |
+| periodic P=128 | 4.0290 | 3.9959 | 0.0073 |
+| periodic P=1024 | 4.0164 | 3.9825 | 0.0078 |
+| RoPE | 3.6476 | 3.6141 | 0.0068 |
+
+**Headline result (the core research question): periodic PE did not
+help, and mildly hurt.** Every periodic-PE configuration's test loss is
+higher (worse) than baseline's, with no exceptions across all 8 periods.
+Per the Stage 5 protocol, the best periodic config is selected by
+validation loss, not test loss -- P=3 wins on both metrics
+(val=3.9899, test=3.9573), so the selection isn't an artifact of
+peeking at test. Even the best periodic config is ~0.016 nats worse
+than baseline on test loss, a gap that is an order of magnitude larger
+than the within-config seed noise (std 0.003-0.02 across configs),
+so this reads as a real effect at this scale/budget, not noise --
+though formal significance testing is still worth doing for the
+write-up rather than eyeballing the gap against the std column.
+
+**RoPE decisively outperforms everything else** (mean test loss 3.614
+vs ~3.94-4.00 for baseline/periodic), a gap roughly 20x the size of the
+periodic-vs-baseline gap. This is the strongest signal in the whole
+sweep. Consistent with the broader literature where RoPE (relative,
+multiplicative position information applied inside attention) tends to
+outperform additive/concat absolute sinusoidal PE for autoregressive
+LMs -- not a surprising result in itself, but a useful calibration
+point: the periodic-PE effect (or lack thereof) is small next to the
+base-PE-mechanism effect.
+
+**Non-monotonic structure within periodic PE, unlike v1.** Periods 2-16
+cluster tightly (3.957-3.965, indistinguishable from each other within
+seed noise) and are the best-performing periodic configs; P=45 and
+especially P=128 are distinctly worse (P=128 is the single worst point
+in the whole sweep); P=1024 partially recovers but remains well above
+baseline. This is a different shape from v1's finding (where larger P,
+approaching the context length, was more effective, interpreted there
+as the Ceiling Confound -- period acting as an effective context-length
+knob). Plausible reason for the difference: Stage 4's concat injection
+(rather than v1's additive injection) was specifically chosen to avoid
+the LayerNorm amplitude-scale mechanism behind the Ceiling Confound, so
+this result may reflect what periodic PE does on its own merits, without
+that confound inflating large-P performance. Worth discussing explicitly
+in the write-up as a point of contrast with v1, not just a replication.
+
+**Caveats to carry into the write-up** (per the original brief, plus
+one new one from this run):
+- Edited-subtitle caveat (WIT3 TED subtitles are edited/translated text,
+  not spontaneous speech).
+- Canonical-vs-realized syllables (CMUdict gives canonical pronunciation
+  counts, not how syllables were actually realized in speech).
+- CMUdict's American-English bias (may undercount/miscount syllables
+  for non-American English speakers' pronunciations).
+- Period selection was done on validation loss, not test loss (addressed
+  above -- P=3 selected this way, not by test-loss peeking).
+- New: the periodic-PE "ceiling" shape found here (worst at P=45-128,
+  not monotonically improving toward N=1024) differs from v1's, and the
+  injection-method change (concat vs additive) is the leading candidate
+  explanation -- flag as an open question rather than a settled
+  explanation, since it wasn't directly tested (no additive-injection
+  control was run in this project).

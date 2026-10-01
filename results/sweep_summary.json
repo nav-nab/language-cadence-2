@@ -1,0 +1,72 @@
+[
+  {
+    "pe_mode": "baseline",
+    "period": null,
+    "n_seeds": 3,
+    "mean_test_loss": 3.9410839008562495,
+    "std_test_loss": 0.016494624402411385
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 2,
+    "n_seeds": 3,
+    "mean_test_loss": 3.9640528216506494,
+    "std_test_loss": 0.004190312356781794
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 3,
+    "n_seeds": 3,
+    "mean_test_loss": 3.957267479463057,
+    "std_test_loss": 0.0029238519378987247
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 6,
+    "n_seeds": 3,
+    "mean_test_loss": 3.961102933594675,
+    "std_test_loss": 0.004945911836821283
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 9,
+    "n_seeds": 3,
+    "mean_test_loss": 3.962464375929399,
+    "std_test_loss": 0.00654842395898282
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 16,
+    "n_seeds": 3,
+    "mean_test_loss": 3.9647542852343935,
+    "std_test_loss": 0.004414944214290933
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 45,
+    "n_seeds": 3,
+    "mean_test_loss": 3.9814465840657554,
+    "std_test_loss": 0.004193577728912485
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 128,
+    "n_seeds": 3,
+    "mean_test_loss": 3.995886206626892,
+    "std_test_loss": 0.007279965125168869
+  },
+  {
+    "pe_mode": "periodic",
+    "period": 1024,
+    "n_seeds": 3,
+    "mean_test_loss": 3.9824652418945776,
+    "std_test_loss": 0.007833016275980683
+  },
+  {
+    "pe_mode": "rope",
+    "period": null,
+    "n_seeds": 3,
+    "mean_test_loss": 3.6141238501577666,
+    "std_test_loss": 0.006780845803190819
+  }
+]
