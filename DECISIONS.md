@@ -697,3 +697,55 @@ seed count is run.
 
 Full corrected numbers (including the 28-pair table) saved to
 `results/stats_sweep.json`.
+
+## 2026-10-01 -- Two corrections to the significance-test interpretation (user review)
+
+User pushed back on the summary's penultimate paragraph with two questions
+that each caught a real error.
+
+**(a) Overclaimed precision on the curve "shape."** The omnibus test
+(Friedman p=0.0082, RM-ANOVA p<0.0001) directly compares the spread
+across periods against the seed-to-seed residual variance -- its error
+term IS the seed x period interaction (df=14=7x2) -- so "is the
+period-to-period spread distinguishable from seed noise" is answered: yes.
+But this only establishes that SOME real difference exists among the 8
+periods; it does not certify the specific descriptive shape ("periods
+2-16 cluster low, 45/128 are worst, 1024 partially recovers"). The
+corrected 28-pair family from the prior entry found no individual
+pairwise comparison significant, including the single largest gap in the
+sweep (best vs. worst, p_holm=0.34). Two additional exploratory checks
+were run to sanity-check the shape narrative, clearly uncorrected/post-hoc
+(groupings chosen by eye after seeing the plot, so not confirmatory):
+  - within-seed average of periods {2,3,6,9,16} vs. {45,128}: paired
+    t=-9.41, p=0.0111 (uncorrected)
+  - P=128 vs. P=1024 (the "partial recovery" claim): paired t=11.47,
+    p=0.0075 (uncorrected)
+Both are directionally consistent with the described shape and worth
+reporting descriptively in the write-up, but should be labeled
+exploratory/suggestive, not confirmed -- the earlier summary stated the
+shape with more confidence than the statistics support.
+
+**(b) Wrong explanation for why this project's curve differs from the
+first project's monotonic Ceiling Confound curve.** The claim that it was
+"because this project uses concat injection" is false: the first
+project's own Stage 3 calibration pilot (see language-cadence-writeup
+notes) tested additive vs. concat injection and settled on concat BEFORE
+running its real 70-run sweep -- both projects used concat. Injection
+method is not the differentiator.
+
+The actual, already-on-record difference (flagged during this project's
+design phase, not a new post-hoc story): the first project's periodic PE
+was the model's entire positional signal -- purely periodic, no separate
+base/absolute PE at all -- so as P approached the context length N, the
+model directly gained more absolute positional resolution within the
+window. That IS the Ceiling Confound mechanism. This project fixes a
+constant Vaswani-style sinusoidal base PE that supplies full absolute
+position information regardless of P, with the periodic component
+injected as an additional signal on top -- which is precisely why, during
+design, the Ceiling Confound was expected to be weaker here. The data is
+consistent with that expectation (this project's curve is not monotonic
+toward N the way the first project's was), though the specific mechanism
+hasn't been isolated with a direct ablation (e.g. a with-base-PE vs.
+without-base-PE comparison at matched P) -- worth flagging as the leading
+explanation, grounded in the actual architectural difference, rather than
+the incorrect injection-method story from the prior entry.
