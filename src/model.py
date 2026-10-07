@@ -22,7 +22,6 @@ import torch.nn.functional as F
 
 from positional_encoding import combined_pe
 
-
 def rotary_freqs(head_dim: int, seq_len: int, base: float = 10000.0) -> tuple[torch.Tensor, torch.Tensor]:
     """Standard RoPE cos/sin tables, shape (seq_len, head_dim)."""
     inv_freq = 1.0 / (base ** (torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
