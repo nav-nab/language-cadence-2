@@ -1,6 +1,6 @@
 # Language Cadence 2
 
-<img src="assets/avatar-2.svg" alt="Tempo, the Language Cadence 2 mascot" align="right" width="110" height="103">
+<img src="assets/avatar-2.svg" alt="Tempo, the Language Cadence 2 mascot" align="right" width="190" height="177">
 
 **Does giving a transformer an explicit periodic "clock" help it learn language?**
 Short answer: no, but different periods produce statistically distinguishable
